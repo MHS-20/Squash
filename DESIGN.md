@@ -50,6 +50,32 @@
 - Every position, including those inside matches, is inserted. zlib skips
   insertion inside long matches at fast levels; that is a speed trick only.
 
+## DEFLATE, zlib, gzip
+
+- Decoding writes straight into the output buffer, which also serves as the
+  32 KB window; a distance is checked against the bytes produced so far
+  (`sq_buf_lzcopy`). Each code is one probe into the 2^15-entry table.
+- Malformed streams are caught at the point of use: reserved block type and
+  symbols (286/287, distance 30/31), bad stored LEN/NLEN, repeat code 16
+  with nothing to repeat, a repeat running past HLIT+HDIST, a missing
+  end-of-block code, over-subscribed lengths, distances before the start,
+  and any read past the end of input.
+- The encoder parses with `lz_parse` using zlib's per-level
+  `{nice, lazy, chain}` values (levels 1-3 greedy, 4-9 lazy), then cuts the
+  parse into blocks of 16384 symbols. Each block is costed three ways —
+  stored, fixed, dynamic — and the cheapest is written, as libdeflate does.
+  Block boundaries are fixed-size, not chosen from statistics (no block
+  splitting); that is the main ratio gap to zlib -9 and libdeflate.
+- Like zlib, the encoder always gives the distance code at least two
+  symbols, since some inflaters reject a one-symbol distance code.
+- gzip writes MTIME = 0 and no name, so output is reproducible. The decoder
+  handles every header flag (FEXTRA, FNAME, FCOMMENT, FHCRC) and multiple
+  members; zlib streams with a preset dictionary are reported as
+  unsupported.
+- `src/codec.c` is a small registry (name, suffix, magic, level range,
+  function pointers) used by the CLI and by the generic round-trip and
+  robustness tests, so a new format is tested by adding one line.
+
 ## Upstream references (opened and verified)
 
 Pinned commits:
@@ -59,6 +85,8 @@ Pinned commits:
 | madler/zlib | 767c4c947852e143f582c85f14cf573411df1b35 |
 | Cyan4973/xxHash | 680bf463fa1ca0461b9a7c2dab7556e1f54cf4cf |
 | libarchive/bzip2 | 1ea1ac188ad4b9cb662e3f8314673c63df95a589 |
+| ebiggers/libdeflate | 92e6a0db9fa848d742f9eb286c92afc60f2c3dda |
+| richgel999/miniz | 2948eebafc5b9f1c69bebed80333e403a09bd62d |
 
 | Module | Upstream file:line | What it informed |
 |---|---|---|
@@ -72,3 +100,8 @@ Pinned commits:
 | LZ77 | zlib `deflate.c:112-123` (`configuration_table`) | good/lazy/nice/chain knobs per level |
 | LZ77 | zlib `deflate.c:1390-1425` (`longest_match`) | chain walk, distance limit, chain shortening |
 | LZ77 | zlib `deflate.c:1957-2077` (`deflate_slow`) | one-step lazy evaluation |
+| DEFLATE decode | zlib `inflate.c:747-760` (stored LEN/NLEN), `782-800` (HLIT/HDIST limits), `825-875` (repeat codes), `1012` (distance too far) | validation points |
+| zlib header | zlib `inflate.c:529-559` | FCHECK, method and window checks |
+| zlib header | miniz `miniz_tinfl.c:234` | the same three header checks in one expression |
+| DEFLATE decode | miniz `miniz_tinfl.c:289`, `536` | reserved block type, distance-before-start check |
+| DEFLATE encode | libdeflate `lib/deflate_compress.c:1706-2038` (`deflate_flush_block`) | choosing stored / static / dynamic by exact bit cost |
