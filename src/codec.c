@@ -10,7 +10,9 @@ const sq_codec sq_codecs[] = {
     {"zlib", ".zz", "\x78", 1, 1, 9, sq_zlib_compress, sq_zlib_decompress},
     {"lzw", ".Z", "\x1f\x9d", 2, 9, 16, sq_lzw_compress, sq_lzw_decompress},
     {"lz4", ".lz4", "\x04\x22\x4d\x18", 4, 1, 9, sq_lz4_compress, sq_lz4_decompress},
+    {"snappy", ".sz", "\xff\x06\x00\x00sNaPpY", 10, 1, 1, sq_snappy_compress, sq_snappy_decompress},
     {"deflate", ".deflate", NULL, 0, 1, 9, sq_deflate_compress, sq_deflate_decompress},
+    {"snappy-raw", ".snappy", NULL, 0, 1, 1, sq_snappy_raw_compress, sq_snappy_raw_decompress},
 };
 const size_t sq_codec_count = sizeof sq_codecs / sizeof sq_codecs[0];
 

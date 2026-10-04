@@ -31,5 +31,11 @@ int sq_lzw_compress(const uint8_t *in, size_t n, int level, sq_buf *out);
 int sq_lzw_decompress(const uint8_t *in, size_t n, sq_buf *out);
 int sq_lz4_compress(const uint8_t *in, size_t n, int level, sq_buf *out);
 int sq_lz4_decompress(const uint8_t *in, size_t n, sq_buf *out);
+/* Snappy: the framing format (`snappy`, with magic and CRCs) and the bare
+ * raw format (`snappy-raw`). Snappy has a single level. */
+int sq_snappy_compress(const uint8_t *in, size_t n, int level, sq_buf *out);
+int sq_snappy_decompress(const uint8_t *in, size_t n, sq_buf *out);
+int sq_snappy_raw_compress(const uint8_t *in, size_t n, int level, sq_buf *out);
+int sq_snappy_raw_decompress(const uint8_t *in, size_t n, sq_buf *out);
 
 #endif

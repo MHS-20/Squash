@@ -67,6 +67,9 @@ tar c dir | squash -f gzip > dir.tar.gz
 | `src/lz4.h` | LZ4 constants and block API |
 | `src/lz4_block.c` | LZ4 block format encoder and decoder |
 | `src/lz4_frame.c` | LZ4 frame format (plus skippable and legacy frames) |
+| `src/snappy.h` | Snappy constants and internal raw decoder |
+| `src/snappy_raw.c` | Snappy raw format encoder and decoder |
+| `src/snappy_frame.c` | Snappy framing format (chunks, masked CRC-32C) |
 | `tests/test.h` | tiny test harness |
 | `tests/test_*.c` | one unit test per module |
 | `tests/corpus.h` | generated inputs: empty, 1 byte, zeros, random, text, binary, boundary sizes, >1 block |

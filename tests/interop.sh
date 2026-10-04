@@ -104,4 +104,16 @@ if have lz4; then
     report lz4
 else skip lz4 lz4; fi
 
+# ---- Snappy (python-snappy; recent versions are backed by cramjam) ----------
+if pyhas snappy; then
+    pass=0 fail=0
+    spy() { "$PY" -c "import sys,snappy; d=sys.stdin.buffer.read(); $1"; }
+    # The module's own CLI is broken for -d, so drive the stream classes.
+    ours_to snappy spy 'sys.stdout.buffer.write(snappy.StreamDecompressor().decompress(d))'
+    tool_to snappy spy 'sys.stdout.buffer.write(snappy.StreamCompressor().add_chunk(d))'
+    ours_to snappy-raw spy 'sys.stdout.buffer.write(snappy.decompress(d))'
+    tool_to snappy-raw spy 'sys.stdout.buffer.write(snappy.compress(d))'
+    report snappy
+else skip snappy "python-snappy"; fi
+
 exit $fails

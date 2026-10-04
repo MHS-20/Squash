@@ -120,6 +120,24 @@
   every literal run, offset and match is checked against the input, the
   bytes already produced, and the block's maximum size.
 
+## Snappy
+
+- The raw encoder works in independent 64 KB fragments like the reference
+  and parses each with `lz_parse` (greedy, chain of 4, 4-byte minimum).
+  The reference uses a single-probe hash table with a skip heuristic that
+  speeds through incompressible data; the chain is simpler and finds
+  slightly more.
+- Copies longer than 64 are split exactly as the reference `EmitCopy` does:
+  64-byte pieces while at least 68 remain, so the tail stays >= 4 and can
+  use the compact 1-byte-offset form when short and near.
+- The framing encoder writes 64 KB chunks and falls back to an uncompressed
+  chunk unless compression saves at least 1/8.
+- The framing decoder verifies every masked CRC-32C, skips padding and
+  reserved skippable chunks, rejects reserved unskippable ones, and accepts
+  repeated stream identifiers (concatenated streams). An empty input is
+  accepted as an empty stream, because the reference tools write nothing
+  for empty input.
+
 ## Upstream references (opened and verified)
 
 Pinned commits:
@@ -133,6 +151,7 @@ Pinned commits:
 | richgel999/miniz | 2948eebafc5b9f1c69bebed80333e403a09bd62d |
 | vapier/ncompress | 03592d7a4702bb83558b6f1520c2a6a5381374c8 |
 | lz4/lz4 | 0774d05537f9762f838f7ab541b7765f1a729cb5 |
+| google/snappy | 9c28114a38866f6deeaa826db918293bc28ae410 |
 
 | Module | Upstream file:line | What it informed |
 |---|---|---|
@@ -160,3 +179,6 @@ Pinned commits:
 | LZ4 block | lz4 `lib/lz4.c:243-264` | `MINMATCH`, `LASTLITERALS`, `MFLIMIT`, token nibble masks |
 | LZ4 frame | lz4 `doc/lz4_Frame_format.md:126-195`, `240-300`, `333`, `360-400` | descriptor flags, block size field, skippable and legacy frames |
 | LZ4 frame | lz4 `lib/lz4frame.c:351`, `1444` | header checksum = second byte of XXH32 of the descriptor |
+| Snappy raw | snappy `format_description.txt:15-30`, `47-60`, `90-110` | varint preamble, literal and copy tag layouts |
+| Snappy raw | snappy `snappy.cc:619`, `671-730` (`EmitLiteral`, `EmitCopyAtMost64`, `EmitCopy`) | element emission and splitting of long copies |
+| Snappy framing | snappy `framing_format.txt:40-56`, `68-132` | masked CRC-32C, chunk types |
