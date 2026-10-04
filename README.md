@@ -78,6 +78,8 @@ tar c dir | squash -f gzip > dir.tar.gz
 | `src/bzip2_rand.c` | randomised-block table and toggle |
 | `src/bzip2_dec.c` | bzip2 decoder |
 | `src/bzip2_enc.c` | bzip2 encoder (multi-table selection) |
+| `src/arith.[ch]` | Witten-Neal-Cleary arithmetic coding, static and adaptive order-0 models |
+| `src/rangecoder.[ch]` | LZMA-style binary range coder, bit trees, prices |
 | `tests/test.h` | tiny test harness |
 | `tests/test_*.c` | one unit test per module |
 | `tests/corpus.h` | generated inputs: empty, 1 byte, zeros, random, text, binary, boundary sizes, >1 block |

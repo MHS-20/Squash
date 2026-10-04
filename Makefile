@@ -14,6 +14,8 @@ else
 BUILD   := build
 endif
 
+LDLIBS  += -lm
+
 LIB_SRC := $(filter-out src/cli.c,$(wildcard src/*.c))
 LIB_OBJ := $(LIB_SRC:src/%.c=$(BUILD)/obj/%.o)
 LIB     := $(BUILD)/libsquash.a
@@ -31,10 +33,10 @@ $(LIB): $(LIB_OBJ)
 	$(AR) rcs $@ $^
 
 $(CLI): $(BUILD)/obj/cli.o $(LIB)
-	$(CC) $(LDFLAGS) $^ -o $@
+	$(CC) $(LDFLAGS) $^ $(LDLIBS) -o $@
 
 $(BUILD)/test_%: tests/test_%.c tests/test.h $(LIB)
-	$(CC) $(CFLAGS) -Itests $< $(LIB) $(LDFLAGS) -o $@
+	$(CC) $(CFLAGS) -Itests $< $(LIB) $(LDFLAGS) $(LDLIBS) -o $@
 
 test: $(TESTS) $(CLI)
 	@fail=0; for t in $(TESTS); do $$t || fail=1; done; \

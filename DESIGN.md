@@ -186,6 +186,23 @@
   checks that the real `bzip2` decodes them.
 - Concatenated streams decode in order, like `bzip2 -d`.
 
+## Arithmetic coding and the range coder
+
+- `arith.c` is the Witten-Neal-Cleary coder with 32-bit code values held in
+  64-bit integers, so `range * cumulative` never overflows. Frequencies are
+  capped at 2^16 total, which guarantees every symbol a non-empty slice of
+  the narrowest possible interval. Both models are order 0; the adaptive one
+  adds 32 per occurrence and halves all counts at the cap. Cumulative
+  frequencies are found by a linear scan — a Fenwick tree would make it
+  O(log n), at the cost of a second data structure to explain.
+- These are teaching codecs with a minimal ad-hoc container (length +
+  frequencies), not file formats, so they are not in the CLI.
+- `rangecoder.c` is LZMA's binary range coder: 11-bit probabilities with
+  shift-by-5 adaptation, normalisation at 2^24, and carry handling through
+  a cached byte plus a count of pending 0xFF bytes (`shift_low`). It adds
+  bit-tree helpers in both bit orders and a floating-point bit price used
+  by encoders (LZMA SDK uses a precomputed price table).
+
 ## Upstream references (opened and verified)
 
 Pinned commits:
@@ -201,6 +218,8 @@ Pinned commits:
 | lz4/lz4 | 0774d05537f9762f838f7ab541b7765f1a729cb5 |
 | google/snappy | 9c28114a38866f6deeaa826db918293bc28ae410 |
 | IlyaGrebnov/libsais | b6e52ef33fe14f9d5c14c580d162b6fd2c27f2a8 |
+| ip7z/7zip (LZMA SDK) | 0766b733fe3e06dd2a7f9a3cfbf2108ac73abd17 |
+| tukaani-project/xz | 3b1efb04d17c3a9ef7f473d73af13f1531428ffe |
 
 | Module | Upstream file:line | What it informed |
 |---|---|---|
@@ -245,3 +264,5 @@ Pinned commits:
 | bzip2 | bzip2 `compress.c:235-315` | table count by symbol count, initial equal-frequency partition |
 | bzip2 | bzip2 `compress.c:450` | lengths rebuilt per iteration, limit 17 |
 | bzip2 | bzip2 `bzlib.c:196` | `nblockMAX = 100000 * level - 19` |
+| Range coder | 7-Zip `C/LzmaDec.c:11-26` | `kTopValue`, 11-bit probabilities, move bits, `NORMALIZE`, bit decode/update |
+| Range coder | 7-Zip `C/LzmaEnc.c:691-733` (`RangeEnc_ShiftLow`, `RangeEnc_FlushData`) | carry propagation through the cache byte, 5-byte flush |
