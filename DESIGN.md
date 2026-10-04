@@ -20,6 +20,20 @@
   readable baseline.
 - Adler-32 defers the modulo for `NMAX = 5552` bytes, exactly as zlib does.
 
+## Huffman
+
+- Lengths come from the two-queue construction (sorted leaves plus a queue
+  of merged nodes that is sorted by construction). Length limiting uses
+  bzip2's flattening heuristic: halve the weights and rebuild. Package-merge
+  is optimal but much longer; the loss from flattening is negligible.
+- Decoding has two forms. DEFLATE uses a single-level lookup table of
+  2^15 entries indexed by the next 15 bits (one probe per symbol); zlib and
+  libdeflate use a smaller root table plus sub-tables, which is faster to
+  build but harder to read. bzip2 codes go up to 20 bits, where a full table
+  is too big, so it uses the canonical count/symbol walk.
+- Over-subscribed length sets are rejected. Incomplete sets are accepted,
+  but unused bit patterns decode to an error rather than a symbol.
+
 ## Upstream references (opened and verified)
 
 Pinned commits:
@@ -28,6 +42,7 @@ Pinned commits:
 |---|---|
 | madler/zlib | 767c4c947852e143f582c85f14cf573411df1b35 |
 | Cyan4973/xxHash | 680bf463fa1ca0461b9a7c2dab7556e1f54cf4cf |
+| libarchive/bzip2 | 1ea1ac188ad4b9cb662e3f8314673c63df95a589 |
 
 | Module | Upstream file:line | What it informed |
 |---|---|---|
@@ -35,3 +50,6 @@ Pinned commits:
 | Adler-32 | zlib `adler32.c:10-12` | modulus and NMAX bound |
 | xxHash32 | xxHash `xxhash.h:2922-2926`, `2947-2951`, `3004-3010`, `3187-3203` | primes, lane round, avalanche, short-input path |
 | xxHash64 | xxHash `xxhash.h:3481-3485`, `3496`, `3521-3525` | primes, round and merge round |
+| Huffman | zlib `trees.c:540-593` (`gen_bitlen` overflow fix), `trees.c:203-227` (`gen_codes`) | canonical code assignment; zlib's alternative to flattening |
+| Huffman | zlib `inftrees.c:139-147` | over-subscribed / incomplete checks |
+| Huffman | bzip2 `huffman.c:63-147` (`BZ2_hbMakeCodeLengths`) | length limiting by weight halving |

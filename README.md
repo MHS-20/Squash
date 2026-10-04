@@ -22,5 +22,6 @@ make SAN=1 test   # the same under AddressSanitizer + UBSan (build-san/)
 | `src/crc32.c` | CRC-32, CRC-32C, bzip2 CRC (table driven) |
 | `src/adler32.c` | Adler-32 |
 | `src/xxhash.c` | xxHash32 / xxHash64 |
+| `src/huffman.[ch]` | code lengths, length limit, canonical codes, LSB table and MSB canonical decoders |
 | `tests/test.h` | tiny test harness |
 | `tests/test_*.c` | one unit test per module |
