@@ -312,7 +312,7 @@ static int frame(zstd_dctx *d, const uint8_t *in, size_t n, const uint8_t *dict,
             if (n - p < 1 || size > d->block_max)
                 return SQ_ERR_DATA;
             err = sq_buf_reserve(&d->w, size);
-            if (!err) {
+            if (!err && size) {  /* an empty buffer may still be NULL */
                 memset(d->w.data + d->w.len, in[p], size);
                 d->w.len += size;
             }

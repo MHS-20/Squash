@@ -57,7 +57,8 @@ fuzz: $(CLI)
 	clang -std=c11 -D_POSIX_C_SOURCE=200809L -O1 -g -Isrc '-DSQ_BUF_MAX=((size_t)1<<26)' \
 	    -fsanitize=fuzzer,address,undefined -fno-sanitize-recover=all \
 	    fuzz/fuzz_decode.c $(LIB_SRC) -lm -o build-fuzz/fuzz_decode
-	build-fuzz/fuzz_decode -max_total_time=$(FUZZ_TIME) -max_len=65536 build-fuzz/corpus
+	build-fuzz/fuzz_decode -max_total_time=$(FUZZ_TIME) -max_len=65536 \
+	    -artifact_prefix=build-fuzz/ build-fuzz/corpus
 
 clean:
 	rm -rf build build-san build-fuzz

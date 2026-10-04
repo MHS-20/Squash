@@ -40,6 +40,9 @@ int main(void)
     memcpy(cat + 11, ref, sizeof ref);
     memcpy(cat + 11 + sizeof ref, ref, sizeof ref);
     CHECK(decodes_to(cat, sizeof cat, "hellohello"));
+    /* An empty RLE block as the whole frame (found by fuzzing). */
+    static const uint8_t empty_rle[] = {0x28, 0xb5, 0x2f, 0xfd, 0x20, 0x00, 0x03, 0x00, 0x00, 'x'};
+    CHECK(decodes_to(empty_rle, sizeof empty_rle, ""));
 
     /* The format document's Huffman example: weights A=4 B=3 C=2 D=0 E=1
      * (F implied 1) in direct form, giving A=1 B=01 C=001 E=0000 F=0001.
