@@ -35,6 +35,26 @@ typedef struct {
     uint32_t start_margin;/* and start at least this many before it */
 } lz_params;
 
+/* The hash-chain match finder on its own, for encoders that drive their
+ * own parse (LZMA): find the longest match at a position, then insert it.
+ * head[hash] is the newest position whose first bytes hash there and
+ * prev[pos % window] links each position to the previous one. */
+typedef struct {
+    const uint8_t *in;
+    size_t n;
+    const lz_params *p;
+    uint32_t *head, *prev;  /* positions + 1; 0 = none */
+} lz_matcher;
+
+typedef struct {
+    uint32_t len, dist;     /* len 0: no match of at least min_match */
+} lz_match;
+
+int lz_matcher_init(lz_matcher *m, const uint8_t *in, size_t n, const lz_params *p);
+void lz_matcher_free(lz_matcher *m);
+lz_match lz_matcher_find(const lz_matcher *m, size_t pos);
+void lz_matcher_insert(lz_matcher *m, size_t pos);
+
 void lz_seqs_init(lz_seqs *s);
 void lz_seqs_free(lz_seqs *s);
 

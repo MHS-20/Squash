@@ -43,20 +43,16 @@ static uint32_t max_len_at(size_t n, size_t pos, const lz_params *p)
     return avail < p->max_match ? (uint32_t)avail : p->max_match;
 }
 
-typedef struct {
-    uint32_t len, dist;
-} match;
-
 /* ---- naive ----------------------------------------------------------- */
 
-static match naive_find(const uint8_t *in, size_t n, size_t pos, const lz_params *p)
+static lz_match naive_find(const uint8_t *in, size_t n, size_t pos, const lz_params *p)
 {
-    match best = {0, 0};
+    lz_match best = {0, 0};
     uint32_t max = max_len_at(n, pos, p);
     for (uint32_t d = 1; d <= p->max_dist && d <= pos; d++) {
         uint32_t len = common_prefix(in + pos - d, in + pos, max);
         if (len > best.len)
-            best = (match){len, d};
+            best = (lz_match){len, d};
     }
     if (best.len < p->min_match)
         best.len = 0;
@@ -67,7 +63,7 @@ int lz_parse_naive(const uint8_t *in, size_t n, const lz_params *p, lz_seqs *out
 {
     size_t pos = 0, lit_start = 0;
     while (pos < n) {
-        match m = naive_find(in, n, pos, p);
+        lz_match m = naive_find(in, n, pos, p);
         if (m.len == 0) {
             pos++;
             continue;
@@ -83,61 +79,71 @@ int lz_parse_naive(const uint8_t *in, size_t n, const lz_params *p, lz_seqs *out
 
 /* ---- hash chains ----------------------------------------------------- */
 
-/* head[h] is the most recent position whose first min_match bytes hash to
- * h; prev[pos % window] links each position to the previous one with the
- * same hash. Positions are stored +1 so that 0 means "none". */
-typedef struct {
-    const uint8_t *in;
-    size_t n;
-    const lz_params *p;
-    uint32_t *head, *prev;
-} chains;
-
-static uint32_t hash_at(const chains *c, size_t pos)
+int lz_matcher_init(lz_matcher *m, const uint8_t *in, size_t n, const lz_params *p)
 {
-    const uint8_t *s = c->in + pos;
+    m->in = in;
+    m->n = n;
+    m->p = p;
+    m->head = calloc((size_t)1 << HASH_BITS, sizeof(uint32_t));
+    m->prev = calloc(p->window, sizeof(uint32_t));
+    if (m->head && m->prev)
+        return SQ_OK;
+    lz_matcher_free(m);
+    return SQ_ERR_MEM;
+}
+
+void lz_matcher_free(lz_matcher *m)
+{
+    free(m->head);
+    free(m->prev);
+    m->head = m->prev = NULL;
+}
+
+static uint32_t hash_at(const lz_matcher *m, size_t pos)
+{
+    const uint8_t *s = m->in + pos;
     uint32_t v = s[0] | (uint32_t)s[1] << 8 | (uint32_t)s[2] << 16;
-    if (c->p->min_match >= 4)
+    if (m->p->min_match >= 4)
         v |= (uint32_t)s[3] << 24;
     /* Multiplicative (Fibonacci) hashing: the top bits of the product
      * depend on every input bit. */
     return (v * 2654435761u) >> (32 - HASH_BITS);
 }
 
-static void insert(chains *c, size_t pos)
+void lz_matcher_insert(lz_matcher *m, size_t pos)
 {
-    if (pos + c->p->min_match > c->n)
+    if (pos + m->p->min_match > m->n)
         return;  /* too close to the end to ever start a match */
-    uint32_t h = hash_at(c, pos);
-    c->prev[pos & (c->p->window - 1)] = c->head[h];
-    c->head[h] = (uint32_t)pos + 1;
+    uint32_t h = hash_at(m, pos);
+    m->prev[pos & (m->p->window - 1)] = m->head[h];
+    m->head[h] = (uint32_t)pos + 1;
 }
 
-static match chain_find(const chains *c, size_t pos)
+lz_match lz_matcher_find(const lz_matcher *m, size_t pos)
 {
-    const lz_params *p = c->p;
-    match best = {0, 0};
-    uint32_t max = max_len_at(c->n, pos, p);
+    const lz_params *p = m->p;
+    lz_match best = {0, 0};
+    uint32_t max = max_len_at(m->n, pos, p);
     if (max < p->min_match)
         return best;
-    uint32_t cand = c->head[hash_at(c, pos)];
+    uint32_t cand = m->head[hash_at(m, pos)];
     for (uint32_t tries = p->max_chain; cand && tries--; ) {
         size_t cpos = cand - 1;
         size_t dist = pos - cpos;
         if (dist > p->max_dist)
             break;  /* chains run newest to oldest, so the rest are farther */
-        const uint8_t *a = c->in + cpos, *b = c->in + pos;
+        const uint8_t *a = m->in + cpos, *b = m->in + pos;
         /* The byte that would extend the best match must agree, otherwise
          * this candidate cannot beat it: a cheap early reject. */
         if (a[best.len] == b[best.len]) {
             uint32_t len = common_prefix(a, b, max);
             if (len > best.len) {
-                best = (match){len, (uint32_t)dist};
+                best = (lz_match){len, (uint32_t)dist};
                 if (len >= p->nice_len || len == max)
                     break;
             }
         }
-        cand = c->prev[cpos & (p->window - 1)];
+        cand = m->prev[cpos & (p->window - 1)];
     }
     if (best.len < p->min_match)
         best.len = 0;
@@ -146,15 +152,14 @@ static match chain_find(const chains *c, size_t pos)
 
 int lz_parse(const uint8_t *in, size_t n, const lz_params *p, lz_seqs *out)
 {
-    chains c = {in, n, p, calloc(1u << HASH_BITS, sizeof(uint32_t)),
-                calloc(p->window, sizeof(uint32_t))};
-    int err = (c.head && c.prev) ? SQ_OK : SQ_ERR_MEM;
+    lz_matcher c;
+    int err = lz_matcher_init(&c, in, n, p);
     size_t pos = 0, lit_start = 0;
-    match pending = {0, 0};  /* lazy: the match found at pos - 1 */
+    lz_match pending = {0, 0};  /* lazy: the match found at pos - 1 */
 
     while (!err && pos < n) {
-        match m = chain_find(&c, pos);
-        insert(&c, pos);
+        lz_match m = lz_matcher_find(&c, pos);
+        lz_matcher_insert(&c, pos);
         size_t start;  /* where the match being committed begins */
         if (pending.len) {
             if (m.len > pending.len) {
@@ -183,7 +188,7 @@ int lz_parse(const uint8_t *in, size_t n, const lz_params *p, lz_seqs *out)
         /* Index every covered position so later matches can refer into
          * this one; `pos` itself is already inserted. */
         for (size_t i = pos + 1; i < start + m.len; i++)
-            insert(&c, i);
+            lz_matcher_insert(&c, i);
         pos = start + m.len;
         lit_start = pos;
     }
@@ -193,7 +198,7 @@ int lz_parse(const uint8_t *in, size_t n, const lz_params *p, lz_seqs *out)
     }
     if (!err)
         err = emit(out, (uint32_t)(n - lit_start), 0, 0);
-    free(c.head);
-    free(c.prev);
+    if (c.head)
+        lz_matcher_free(&c);
     return err;
 }
