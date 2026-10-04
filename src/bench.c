@@ -1,5 +1,7 @@
 /* `squash bench`: compression ratio and speed of every codec, next to the
- * system's reference tools when they are installed.
+ * system's reference tools when they are installed. By default one level
+ * per codec family; -a adds container variants, each codec's fastest and
+ * strongest levels, and slower reference settings.
  *
  * Our codecs are timed in memory (best of several runs, each run long
  * enough to time). Reference tools are timed as processes reading a file
@@ -27,12 +29,25 @@ static double now(void)
     return (double)ts.tv_sec + ts.tv_nsec / 1e9;
 }
 
-/* Levels to measure: each codec's fastest, default and strongest. */
+/* Formats that only re-wrap a codec measured under another name; skipped
+ * unless -a, since they double the run time and tell little new. */
+static int is_variant(const sq_codec *c)
+{
+    static const char *variants[] = {"zlib", "deflate", "lzma", "snappy-raw"};
+    for (size_t i = 0; i < sizeof variants / sizeof variants[0]; i++)
+        if (strcmp(c->name, variants[i]) == 0)
+            return 1;
+    return 0;
+}
+
+/* Levels to measure: the default, plus each codec's fastest and strongest
+ * with -a. */
 static int pick_levels(const sq_codec *c, int all, int *lv)
 {
     int k = 0;
     if (!all) {
-        lv[k++] = 0;  /* the default */
+        if (!is_variant(c))
+            lv[k++] = 0;  /* the default */
         return k;
     }
     lv[k++] = c->min_level;
@@ -65,6 +80,7 @@ static void row(const char *who, const char *level, double in, double out, doubl
 {
     printf("  %-22s %-6s %8.3f %10.2f %10.2f\n", who, level, out > 0 ? in / out : 0,
            ct > 0 ? in / ct / 1e6 : 0, dt > 0 ? in / dt / 1e6 : 0);
+    fflush(stdout);  /* long runs: show each result as it lands */
 }
 
 static int bench_ours(const uint8_t *data, size_t n, int all, totals *tot)
@@ -121,29 +137,33 @@ static double run(char *const argv[], const char *in, const char *out)
     return rc == 0 && WIFEXITED(status) && WEXITSTATUS(status) <= 2 ? t : -1;
 }
 
+/* `extra` entries (slow, or a second level) run only with -a. */
 static const struct {
     const char *name, *level;
+    int extra;
     const char *comp[6], *decomp[6];  /* NULL-terminated argv */
 } tools[] = {
-    {"gzip", "-6", {"gzip", "-6", "-c"}, {"gzip", "-dc"}},
-    {"gzip", "-9", {"gzip", "-9", "-c"}, {"gzip", "-dc"}},
-    {"bzip2", "-9", {"bzip2", "-9", "-c"}, {"bzip2", "-dc"}},
-    {"lz4", "-1", {"lz4", "-1", "-c"}, {"lz4", "-dc"}},
-    {"lz4", "-9", {"lz4", "-9", "-c"}, {"lz4", "-dc"}},
-    {"xz", "-6", {"xz", "-6", "-T1", "-c"}, {"xz", "-dc"}},
-    {"zstd", "-3", {"zstd", "-q", "-3", "-c"}, {"zstd", "-q", "-dc"}},
-    {"zstd", "-19", {"zstd", "-q", "-19", "-c"}, {"zstd", "-q", "-dc"}},
-    {"compress", "-b16", {"compress", "-c"}, {"compress", "-dc"}},
+    {"gzip", "-6", 0, {"gzip", "-6", "-c"}, {"gzip", "-dc"}},
+    {"gzip", "-9", 1, {"gzip", "-9", "-c"}, {"gzip", "-dc"}},
+    {"bzip2", "-9", 0, {"bzip2", "-9", "-c"}, {"bzip2", "-dc"}},
+    {"lz4", "-1", 0, {"lz4", "-1", "-c"}, {"lz4", "-dc"}},
+    {"lz4", "-9", 1, {"lz4", "-9", "-c"}, {"lz4", "-dc"}},
+    {"xz", "-6", 0, {"xz", "-6", "-T1", "-c"}, {"xz", "-dc"}},
+    {"zstd", "-3", 0, {"zstd", "-q", "-3", "-c"}, {"zstd", "-q", "-dc"}},
+    {"zstd", "-19", 1, {"zstd", "-q", "-19", "-c"}, {"zstd", "-q", "-dc"}},
+    {"compress", "-b16", 0, {"compress", "-c"}, {"compress", "-dc"}},
 };
 
 static totals tool_tot[16];
 
-static void bench_tools(const char *path, double n, const char *tmp)
+static void bench_tools(const char *path, double n, const char *tmp, int all)
 {
     char zpath[512], dpath[512];
     snprintf(zpath, sizeof zpath, "%s/z", tmp);
     snprintf(dpath, sizeof dpath, "%s/d", tmp);
     for (size_t i = 0; i < sizeof tools / sizeof tools[0]; i++) {
+        if (tools[i].extra && !all)
+            continue;
         double ct = run((char *const *)tools[i].comp, path, zpath);
         if (ct < 0)
             continue;  /* not installed */
@@ -243,7 +263,7 @@ int bench_main(int argc, char **argv)
         }
         printf("%s (%zu bytes)\n", name, n);
         bad |= bench_ours(data, n, all, tot);
-        bench_tools(path, (double)n, tmp);
+        bench_tools(path, (double)n, tmp, all);
         free(data);
     }
     if (ninputs > 1) {

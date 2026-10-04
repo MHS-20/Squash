@@ -46,14 +46,21 @@ PATH=/path/to/ncompress:$PATH PYTHON=/path/to/venv/bin/python make test
 make bench                                   # generated text, binary, random data
 scripts/fetch-silesia.sh                     # Silesia corpus into bench/silesia
 make bench BENCH_FILES="bench/silesia/*"
-build/squash bench -a FILE...                # also the fastest and strongest levels
+build/squash bench -a FILE...                # also variants, fastest/strongest levels
 make fuzz FUZZ_TIME=300                      # libFuzzer over every decoder (clang)
 ```
 
 `squash bench` prints compression ratio and MB/s (compress, decompress)
-for every format, then the same for the installed reference tools
-(`gzip`, `bzip2`, `lz4`, `xz`, `zstd`, `compress`), which are timed as
-processes and so include start-up and file I/O.
+for each codec at its default level, then the same for the installed
+reference tools (`gzip`, `bzip2`, `lz4`, `xz`, `zstd`, `compress`), which
+are timed as processes and so include start-up and file I/O. `-a` adds
+the container variants (zlib, raw DEFLATE, .lzma, raw Snappy), every
+codec's fastest and strongest level, and `gzip -9`, `lz4 -9`, `zstd -19`.
+
+Expect the full Silesia corpus (211 MB) to take around 7 minutes by
+default and well over half an hour with `-a`: the slow entries are the
+LZMA-based encoders (ours and `xz`, 1-3 MB/s) and bzip2, and every input
+is compressed and decompressed at least once per codec.
 
 ## CLI
 

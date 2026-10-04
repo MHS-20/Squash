@@ -49,6 +49,12 @@
   greedy hash-chain parse is identical to it, which the unit test checks.
 - Every position, including those inside matches, is inserted. zlib skips
   insertion inside long matches at fast levels; that is a speed trick only.
+- The match finder is also usable on its own (`lz_matcher_*`) by encoders
+  that drive their own parse (LZMA, zstd). Large windows ask for more hash
+  buckets (`hash_bits`): with 2^15 buckets over a 16 MiB window the chains
+  fill with hash collisions and every probe misses the cache.
+  `lz_matcher_find_all` reports each strictly longer match on the chain,
+  which is what the LZMA optimal parser prices.
 
 ## DEFLATE, zlib, gzip
 

@@ -25,9 +25,9 @@ static void usage(FILE *f)
             "       squash bench [-a] [FILES...]\n"
             "With no IN, read standard input. With IN but no OUT, write IN plus the\n"
             "format's suffix (or IN minus it when decompressing). IN is kept.\n"
-            "bench reports ratio and MB/s for every format (default level; -a adds\n"
-            "the fastest and strongest) and for installed reference tools; without\n"
-            "FILES it uses generated text, binary and random data.\n");
+            "bench reports ratio and MB/s for each codec at its default level and for\n"
+            "installed reference tools; -a adds container variants, fastest and\n"
+            "strongest levels. Without FILES it uses generated data.\n");
 }
 
 static int read_all(FILE *f, sq_buf *b)
