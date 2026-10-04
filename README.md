@@ -63,6 +63,7 @@ tar c dir | squash -f gzip > dir.tar.gz
 | `src/gzip.c` | gzip container (multi-member) |
 | `src/cli.c` | the `squash` command-line tool |
 | `tests/interop.sh` | both-direction interop with the official tools |
+| `src/lzw.c` | LZW in the Unix `compress` (.Z) format |
 | `tests/test.h` | tiny test harness |
 | `tests/test_*.c` | one unit test per module |
 | `tests/corpus.h` | generated inputs: empty, 1 byte, zeros, random, text, binary, boundary sizes, >1 block |

@@ -10,7 +10,7 @@ static int dec(int (*f)(const uint8_t *, size_t, sq_buf *), const void *p, size_
     sq_buf b;
     sq_buf_init(&b);
     int err = f(p, n, &b);
-    int ok = want ? (!err && b.len == strlen(want) && (b.len == 0 || memcmp(b.data, want, b.len) == 0)) : err != 0;
+    int ok = want ? (!err && same_bytes(b.data, b.len, want, strlen(want))) : err != 0;
     sq_buf_free(&b);
     return ok;
 }

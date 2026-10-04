@@ -8,6 +8,7 @@ const sq_codec sq_codecs[] = {
     /* zlib's header is not a fixed magic; 0x78 covers every 32K-window
      * stream, which is all that exists in practice. */
     {"zlib", ".zz", "\x78", 1, 1, 9, sq_zlib_compress, sq_zlib_decompress},
+    {"lzw", ".Z", "\x1f\x9d", 2, 9, 16, sq_lzw_compress, sq_lzw_decompress},
     {"deflate", ".deflate", NULL, 0, 1, 9, sq_deflate_compress, sq_deflate_decompress},
 };
 const size_t sq_codec_count = sizeof sq_codecs / sizeof sq_codecs[0];

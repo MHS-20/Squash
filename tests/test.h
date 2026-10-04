@@ -37,6 +37,12 @@ static int t_checks, t_failures;
         return t_failures ? 1 : 0;                                           \
     } while (0)
 
+/* Equal byte strings; memcmp's arguments may not be NULL even for n == 0. */
+static inline int same_bytes(const void *a, size_t na, const void *b, size_t nb)
+{
+    return na == nb && (na == 0 || memcmp(a, b, na) == 0);
+}
+
 /* Deterministic pseudo-random bytes (xorshift) so failures reproduce. */
 static inline void fill_random(unsigned char *p, size_t n, unsigned long long seed)
 {

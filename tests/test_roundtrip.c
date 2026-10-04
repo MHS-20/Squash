@@ -22,8 +22,7 @@ int main(int argc, char **argv)
                 sq_buf_init(&d);
                 int e1 = codec->compress(s[i].data, s[i].len, level, &z);
                 int e2 = e1 ? e1 : codec->decompress(z.data, z.len, &d);
-                int ok = !e1 && !e2 && d.len == s[i].len &&
-                         (s[i].len == 0 || memcmp(d.data, s[i].data, s[i].len) == 0);
+                int ok = !e1 && !e2 && same_bytes(d.data, d.len, s[i].data, s[i].len);
                 CHECK(ok);
                 if (!ok)
                     fprintf(stderr, "  %s level %d on %s: %s / %s\n", codec->name, level,

@@ -76,6 +76,30 @@
   function pointers) used by the CLI and by the generic round-trip and
   robustness tests, so a new format is tested by adding one line.
 
+## LZW (.Z)
+
+- There is no written spec; ncompress's `compress.c` is the format. Three
+  details decide compatibility:
+  1. **Widening.** The decoder learns each dictionary entry one code after
+     the encoder made it, so the encoder widens when its next free code
+     exceeds 2^n and the decoder when its own exceeds 2^n - 1.
+  2. **Group padding.** compress writes codes in groups of eight; on a
+     width change or after CLEAR, the rest of the group is skipped, so the
+     position is rounded up to a multiple of `n_bits * 8` bits measured
+     from where the previous width began.
+  3. **After CLEAR** the decoder resumes at free code 256 (not 257): the
+     next code harmlessly defines slot 256, keeping both sides in step.
+- The encoder uses compress's reset policy: once the table is full it checks
+  the compression ratio every 10000 input bytes and emits CLEAR when the
+  ratio drops. Without a reset its output is byte-identical to ncompress
+  (checked in `tests/test_lzw.c`); with resets it differs only in where the
+  checks land.
+- `level` is the maximum code width (9-16), like `compress -b`.
+- Decoder errors: width outside 9-16, a first code above 255, and a code
+  beyond the next free entry (only `code == next` is the legal KwKwK case).
+- `gzip -d` can also read `.Z` files but rejects valid `-b 9` streams from
+  ncompress itself, so interop uses it only for the default width.
+
 ## Upstream references (opened and verified)
 
 Pinned commits:
@@ -87,6 +111,7 @@ Pinned commits:
 | libarchive/bzip2 | 1ea1ac188ad4b9cb662e3f8314673c63df95a589 |
 | ebiggers/libdeflate | 92e6a0db9fa848d742f9eb286c92afc60f2c3dda |
 | richgel999/miniz | 2948eebafc5b9f1c69bebed80333e403a09bd62d |
+| vapier/ncompress | 03592d7a4702bb83558b6f1520c2a6a5381374c8 |
 
 | Module | Upstream file:line | What it informed |
 |---|---|---|
@@ -105,3 +130,8 @@ Pinned commits:
 | zlib header | miniz `miniz_tinfl.c:234` | the same three header checks in one expression |
 | DEFLATE decode | miniz `miniz_tinfl.c:289`, `536` | reserved block type, distance-before-start check |
 | DEFLATE encode | libdeflate `lib/deflate_compress.c:1706-2038` (`deflate_flush_block`) | choosing stored / static / dynamic by exact bit cost |
+| LZW | ncompress `compress.c:217`, `232-248` | `MAXCODE`, encoder/decoder reset of width and limits |
+| LZW | ncompress `compress.c:1064-1074` | encoder widening and group padding |
+| LZW | ncompress `compress.c:1082-1108` | ratio check and CLEAR |
+| LZW | ncompress `compress.c:1345-1356`, `1373-1380` | decoder widening, CLEAR handling and padding |
+| LZW | ncompress `compress.c:1386-1393`, `1449-1453` | KwKwK case, entry creation limit |

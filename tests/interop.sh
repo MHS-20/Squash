@@ -81,4 +81,16 @@ if pyhas zlib; then
     report deflate
 else skip zlib "python3 zlib"; skip deflate "python3 zlib"; fi
 
+# ---- LZW (.Z) ---------------------------------------------------------------
+if have compress; then
+    pass=0 fail=0
+    ours_to lzw compress -dc
+    # compress exits 2 when the output is not smaller; that is not an error.
+    compress_c() { compress -c "$@"; [ $? -le 2 ]; }
+    for b in 9 12 16; do tool_to lzw compress_c -b $b; done
+    # gzip also reads .Z files (it fails on -b9 streams, so default width only).
+    if have gzip; then ours_to lzw gzip -dc; fi
+    report lzw
+else skip lzw "compress (ncompress)"; fi
+
 exit $fails

@@ -35,7 +35,7 @@ int main(void)
             for (size_t cut = 0; cut < z.len; cut += step) {
                 memcpy(copy, z.data, cut);
                 int err = decode(codec, copy, cut, &d);
-                if (!err && d.len == inputs[k].n && memcmp(d.data, inputs[k].p, d.len) == 0)
+                if (!err && same_bytes(d.data, d.len, inputs[k].p, inputs[k].n))
                     truncations_ok = 0;
             }
             /* Single and multiple bit flips at pseudo-random positions. */
