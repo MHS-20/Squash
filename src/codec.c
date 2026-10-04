@@ -11,6 +11,7 @@ const sq_codec sq_codecs[] = {
     {"lzw", ".Z", "\x1f\x9d", 2, 9, 16, sq_lzw_compress, sq_lzw_decompress},
     {"lz4", ".lz4", "\x04\x22\x4d\x18", 4, 1, 9, sq_lz4_compress, sq_lz4_decompress},
     {"snappy", ".sz", "\xff\x06\x00\x00sNaPpY", 10, 1, 1, sq_snappy_compress, sq_snappy_decompress},
+    {"bzip2", ".bz2", "BZh", 3, 1, 9, sq_bzip2_compress, sq_bzip2_decompress},
     {"deflate", ".deflate", NULL, 0, 1, 9, sq_deflate_compress, sq_deflate_decompress},
     {"snappy-raw", ".snappy", NULL, 0, 1, 1, sq_snappy_raw_compress, sq_snappy_raw_decompress},
 };

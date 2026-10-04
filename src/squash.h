@@ -37,5 +37,7 @@ int sq_snappy_compress(const uint8_t *in, size_t n, int level, sq_buf *out);
 int sq_snappy_decompress(const uint8_t *in, size_t n, sq_buf *out);
 int sq_snappy_raw_compress(const uint8_t *in, size_t n, int level, sq_buf *out);
 int sq_snappy_raw_decompress(const uint8_t *in, size_t n, sq_buf *out);
+int sq_bzip2_compress(const uint8_t *in, size_t n, int level, sq_buf *out);
+int sq_bzip2_decompress(const uint8_t *in, size_t n, sq_buf *out);
 
 #endif

@@ -93,6 +93,14 @@ if have compress; then
     report lzw
 else skip lzw "compress (ncompress)"; fi
 
+# ---- bzip2 --------------------------------------------------------------------
+if have bzip2; then
+    pass=0 fail=0
+    ours_to bzip2 bzip2 -dc
+    for l in 1 6 9; do tool_to bzip2 bzip2 -c -$l; done
+    report bzip2
+else skip bzip2 bzip2; fi
+
 # ---- LZ4 frame --------------------------------------------------------------
 if have lz4; then
     pass=0 fail=0

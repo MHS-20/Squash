@@ -74,6 +74,10 @@ tar c dir | squash -f gzip > dir.tar.gz
 | `src/bwt.[ch]` | Burrows-Wheeler transform: naive, SA-IS based, inverse |
 | `src/mtf.[ch]` | move-to-front transform |
 | `src/rle.[ch]` | bzip2 RLE1 (byte runs) and RLE2 (RUNA/RUNB zero runs) |
+| `src/bzip2.h` | bzip2 constants and internal API |
+| `src/bzip2_rand.c` | randomised-block table and toggle |
+| `src/bzip2_dec.c` | bzip2 decoder |
+| `src/bzip2_enc.c` | bzip2 encoder (multi-table selection) |
 | `tests/test.h` | tiny test harness |
 | `tests/test_*.c` | one unit test per module |
 | `tests/corpus.h` | generated inputs: empty, 1 byte, zeros, random, text, binary, boundary sizes, >1 block |

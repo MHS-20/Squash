@@ -162,6 +162,30 @@
   bounds the run digit weight like bzip2 (`N < 2M`), here against the
   block size, so a long RUNA/RUNB string is an error, not an overflow.
 
+## bzip2
+
+- The encoder is the bzip2 pipeline with the transforms from the modules
+  above: RLE1 fills a block to `level * 100000 - 19` bytes (bzip2's own
+  limit), then BWT, MTF over the dense alphabet of bytes in use, RLE2, and
+  Huffman coding.
+- Table selection follows bzip2: 2-6 tables depending on the symbol count,
+  started from contiguous equal-frequency ranges of the alphabet, then four
+  passes of "give each 50-symbol group its cheapest table, rebuild each
+  table from its groups". Code lengths are capped at 17 like bzip2 >= 1.0.3.
+  bzip2 additionally nudges the initial range boundaries and has faster
+  cost loops; output size is within a fraction of a percent of `bzip2 -9`.
+- The decoder checks every field bzip2 checks: table count 2-6, at least
+  one selector, unary selector indices below the table count, code lengths
+  1-20, origPtr inside the block, RUNA/RUNB run bounds, block size against
+  the header digit, block CRC and combined CRC. Selectors beyond 18002 are
+  read and ignored, as bzip2 1.0.8 does. Over-subscribed code lengths are
+  rejected (bzip2 does not check; no real encoder produces them).
+- Randomised blocks (written by bzip2 before 0.9.5) are decoded by
+  toggling the pattern from bzip2's fixed 512-entry table. The encoder can
+  produce them for tests only (`bzip2_compress_ex`), and `tests/test_bzip2.c`
+  checks that the real `bzip2` decodes them.
+- Concatenated streams decode in order, like `bzip2 -d`.
+
 ## Upstream references (opened and verified)
 
 Pinned commits:
@@ -214,3 +238,10 @@ Pinned commits:
 | SA-IS | libsais `src/libsais.c:4103`, `6668`, `7097` | LMS renaming, recursion, BWT entry point |
 | RLE2 | bzip2 `compress.c:171-187` | zero runs as RUNA/RUNB, bijective base 2 |
 | RLE2 | bzip2 `decompress.c:385-399` | run decoding and its overflow guard |
+| bzip2 | bzip2 `decompress.c:280-345` | symbol map, selectors (MTF + unary, `BZ_MAX_SELECTORS` clamp), delta-coded lengths |
+| bzip2 | bzip2 `decompress.c:358`, `470-525` | block size bound, origPtr and cftab checks |
+| bzip2 | bzip2 `bzlib_private.h:114-123`, `135-147` | group size, table count, selector limit, randomisation mask |
+| bzip2 | bzip2 `randtable.c` (`BZ2_rNums`) | the randomisation table (format data) |
+| bzip2 | bzip2 `compress.c:235-315` | table count by symbol count, initial equal-frequency partition |
+| bzip2 | bzip2 `compress.c:450` | lengths rebuilt per iteration, limit 17 |
+| bzip2 | bzip2 `bzlib.c:196` | `nblockMAX = 100000 * level - 19` |
