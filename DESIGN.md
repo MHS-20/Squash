@@ -71,4 +71,4 @@ Pinned commits:
 | Huffman | bzip2 `huffman.c:63-147` (`BZ2_hbMakeCodeLengths`) | length limiting by weight halving |
 | LZ77 | zlib `deflate.c:112-123` (`configuration_table`) | good/lazy/nice/chain knobs per level |
 | LZ77 | zlib `deflate.c:1390-1425` (`longest_match`) | chain walk, distance limit, chain shortening |
-| LZ77 | zlib `deflate.c:1957-2100` (`deflate_slow`) | one-step lazy evaluation |
+| LZ77 | zlib `deflate.c:1957-2077` (`deflate_slow`) | one-step lazy evaluation |
