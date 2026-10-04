@@ -1,6 +1,7 @@
 #include "rangecoder.h"
 
 #include <math.h>
+#include <threads.h>
 
 void rc_probs_init(rc_prob *p, size_t n)
 {
@@ -190,10 +191,23 @@ uint32_t rc_dec_tree_rev(rc_decoder *d, rc_prob *probs, unsigned nbits)
 
 /* ---- prices ---------------------------------------------------------- */
 
+/* -log2(probability) in 1/16 bit units, sampled every 16 probability
+ * steps: encoders price many bits per byte, so a table beats log2(). */
+#define PRICE_SHIFT 4
+static uint32_t price_table[(1u << RC_PROB_BITS) >> PRICE_SHIFT];
+static once_flag price_once = ONCE_FLAG_INIT;
+
+static void build_prices(void)
+{
+    for (uint32_t i = 0; i < (1u << RC_PROB_BITS) >> PRICE_SHIFT; i++) {
+        double prob = (i * (1u << PRICE_SHIFT) + (1u << PRICE_SHIFT) / 2.0) / (1u << RC_PROB_BITS);
+        price_table[i] = (uint32_t)(-log2(prob) * 16 + 0.5);
+    }
+}
+
 uint32_t rc_bit_price(rc_prob p, unsigned bit)
 {
-    /* -log2(probability of `bit`) in 1/16 bit units; a table would be
-     * faster, but encoders here only price a few choices per symbol. */
-    double prob = (double)(bit ? (1u << RC_PROB_BITS) - p : p) / (1u << RC_PROB_BITS);
-    return (uint32_t)(-log2(prob) * 16 + 0.5);
+    call_once(&price_once, build_prices);
+    uint32_t q = bit ? (1u << RC_PROB_BITS) - p : p;
+    return price_table[q >> PRICE_SHIFT];
 }

@@ -124,4 +124,20 @@ if pyhas snappy; then
     report snappy
 else skip snappy "python-snappy"; fi
 
+# ---- xz and .lzma -------------------------------------------------------------
+if have xz; then
+    pass=0 fail=0
+    ours_to xz xz -dc
+    for opt in -0 -6 "-9 -e" "-1 --check=crc32" "-1 --check=none" "-3 --check=sha256" \
+               "-6 --block-size=200000" "-6 -T4 --block-size=150000"; do
+        # shellcheck disable=SC2086
+        tool_to xz xz -c $opt
+    done
+    report xz
+    pass=0 fail=0
+    ours_to lzma xz -dc --format=lzma
+    for l in 0 6 9; do tool_to lzma xz -c --format=lzma -$l; done
+    report lzma
+else skip xz xz; skip lzma xz; fi
+
 exit $fails

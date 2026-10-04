@@ -1,5 +1,3 @@
-#include <stdio.h>
-
 #include "bzip2.h"
 #include "test.h"
 
@@ -11,28 +9,6 @@ static int decodes_to(const uint8_t *p, size_t n, const char *want)
     int ok = want ? !err && same_bytes(b.data, b.len, want, strlen(want)) : err != 0;
     sq_buf_free(&b);
     return ok;
-}
-
-/* Pipes `data` through `bzip2 -dc` and compares; -1 if bzip2 is missing. */
-static int official_decodes(const uint8_t *z, size_t zn, const uint8_t *want, size_t wn)
-{
-    if (system("command -v bzip2 >/dev/null 2>&1") != 0)
-        return -1;
-    char path[] = "/tmp/squash-bz-XXXXXX";
-    int fd = mkstemp(path);
-    FILE *f = fd >= 0 ? fdopen(fd, "wb") : NULL;
-    if (!f)
-        return 0;
-    fwrite(z, 1, zn, f);
-    fclose(f);
-    char cmd[64];
-    snprintf(cmd, sizeof cmd, "bzip2 -dc < %s", path);
-    FILE *p = popen(cmd, "r");
-    static uint8_t got[1 << 20];
-    size_t gn = p ? fread(got, 1, sizeof got, p) : 0;
-    int status = p ? pclose(p) : -1;
-    remove(path);
-    return status == 0 && same_bytes(got, gn, want, wn);
 }
 
 int main(void)
@@ -83,7 +59,7 @@ int main(void)
         CHECK(sq_bzip2_decompress(b.data, b.len, &d) == 0);
         CHECK(same_bytes(d.data, d.len, data, sizeof data));
         /* The real bzip2 must agree, in particular on derandomisation. */
-        int official = official_decodes(b.data, b.len, data, sizeof data);
+        int official = tool_decodes("bzip2", "bzip2 -dc", b.data, b.len, data, sizeof data);
         if (official < 0)
             printf("bzip2          SKIPPED official check (bzip2 not found)\n");
         else

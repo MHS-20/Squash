@@ -13,7 +13,7 @@ make SAN=1 test   # the same under AddressSanitizer + UBSan (build-san/)
 
 Interop tests use whichever official tools are installed and report the
 rest as `SKIPPED`: `gzip`, Python's `zlib` module (zlib and raw DEFLATE),
-`bzip2`, `lz4`, `compress` (ncompress) and python-snappy. Point `PYTHON`
+`bzip2`, `lz4`, `xz`, `compress` (ncompress) and python-snappy. Point `PYTHON`
 at an interpreter that has python-snappy, and put `compress` on `PATH`:
 
 ```
@@ -80,6 +80,15 @@ tar c dir | squash -f gzip > dir.tar.gz
 | `src/bzip2_enc.c` | bzip2 encoder (multi-table selection) |
 | `src/arith.[ch]` | Witten-Neal-Cleary arithmetic coding, static and adaptive order-0 models |
 | `src/rangecoder.[ch]` | LZMA-style binary range coder, bit trees, prices |
+| `src/crc64.c` | CRC-64/XZ |
+| `src/sha256.c` | SHA-256 (xz check) |
+| `src/lzma.h` | LZMA model, decoder, encoder and LZMA2 API |
+| `src/lzma_model.c` | LZMA probability model init/reset, properties byte |
+| `src/lzma_dec.c` | LZMA decoder |
+| `src/lzma_enc.c` | LZMA encoder (fast-mode parse) |
+| `src/lzma_alone.c` | .lzma container |
+| `src/lzma2.c` | LZMA2 chunking, both directions |
+| `src/xz.c` | .xz container |
 | `tests/test.h` | tiny test harness |
 | `tests/test_*.c` | one unit test per module |
 | `tests/corpus.h` | generated inputs: empty, 1 byte, zeros, random, text, binary, boundary sizes, >1 block |

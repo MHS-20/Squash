@@ -12,10 +12,15 @@ uint32_t sq_crc32(uint32_t crc, const void *data, size_t n);
 uint32_t sq_crc32c(uint32_t crc, const void *data, size_t n);
 /* bzip2's CRC: same polynomial as CRC-32 but not reflected. Start with 0. */
 uint32_t sq_crc32_bzip2(uint32_t crc, const void *data, size_t n);
+/* CRC-64 as used by xz (ECMA-182 polynomial, reflected). Start with 0. */
+uint64_t sq_crc64(uint64_t crc, const void *data, size_t n);
 /* Adler-32 (zlib). Start with 1. */
 uint32_t sq_adler32(uint32_t adler, const void *data, size_t n);
 /* xxHash (LZ4 frames use XXH32 with seed 0). One-shot only. */
 uint32_t sq_xxh32(const void *data, size_t n, uint32_t seed);
 uint64_t sq_xxh64(const void *data, size_t n, uint64_t seed);
+
+/* SHA-256 (FIPS 180-4), one-shot; xz's strongest integrity check. */
+void sq_sha256(const void *data, size_t n, uint8_t digest[32]);
 
 #endif

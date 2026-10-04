@@ -39,5 +39,10 @@ int sq_snappy_raw_compress(const uint8_t *in, size_t n, int level, sq_buf *out);
 int sq_snappy_raw_decompress(const uint8_t *in, size_t n, sq_buf *out);
 int sq_bzip2_compress(const uint8_t *in, size_t n, int level, sq_buf *out);
 int sq_bzip2_decompress(const uint8_t *in, size_t n, sq_buf *out);
+/* LZMA in the .lzma ("alone") container and in .xz (LZMA2 filter). */
+int sq_lzma_compress(const uint8_t *in, size_t n, int level, sq_buf *out);
+int sq_lzma_decompress(const uint8_t *in, size_t n, sq_buf *out);
+int sq_xz_compress(const uint8_t *in, size_t n, int level, sq_buf *out);
+int sq_xz_decompress(const uint8_t *in, size_t n, sq_buf *out);
 
 #endif

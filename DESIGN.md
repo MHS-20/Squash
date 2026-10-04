@@ -203,6 +203,39 @@
   bit-tree helpers in both bit orders and a floating-point bit price used
   by encoders (LZMA SDK uses a precomputed price table).
 
+## LZMA, LZMA2, xz
+
+- One probability model (`lzma.h`, `lzma_model.c`) serves both directions.
+  The decoder follows the structure of the LZMA SDK's `LZMA_DECODE_REAL`
+  but writes the matched-literal loop the way the LZMA specification
+  explains it (code bits against the byte at rep0 until they disagree).
+- The output buffer is the dictionary: back-references are checked against
+  the bytes produced since the last dictionary reset, and positions for
+  `pb`/`lp` contexts count from that reset, as in the SDK.
+- Encoder: the LZMA SDK's fast mode, re-derived. At each position try the
+  four repeat distances and the hash-chain match; prefer a repeat that is
+  nearly as long (the SDK's thresholds), take one step of lazy evaluation,
+  and choose between a literal and a "short rep" by bit price. Distances
+  that equal a recent one are coded as repeats. The SDK's optimal parser
+  (pricing paths of up to 4096 decisions) is not implemented; that is
+  where most of the gap to `xz -6` (about 15% on source code) comes from.
+- Levels 1-9 set dictionary size (1-16 MiB, shrunk to the input), chain
+  length and nice length. lc=3, lp=0, pb=2.
+- LZMA2 chunks hold at most 2 MiB in and 64 KiB out; the encoder stops a
+  chunk when another operation might not fit, and stores a chunk that did
+  not shrink. After a stored chunk the next LZMA chunk resets the state
+  (and, after a stored first chunk, sends properties) — the same rule
+  liblzma's encoder follows.
+- Decoders demand exact framing: an LZMA2 chunk's range coder must end
+  exactly at its compressed size with `code == 0`; a .lzma stream with
+  unknown size must end with the end marker; matches may not cross the
+  declared end.
+- xz: one block per stream with CRC64 when encoding. The decoder handles
+  multiple blocks and streams, stream padding, optional block sizes, all
+  CRC-protected fields, and None/CRC32/CRC64/SHA-256 checks. Filters other
+  than a lone LZMA2 (BCJ, delta) are reported as unsupported.
+- `crc64.c` and `sha256.c` provide the two extra xz checks.
+
 ## Upstream references (opened and verified)
 
 Pinned commits:
@@ -266,3 +299,11 @@ Pinned commits:
 | bzip2 | bzip2 `bzlib.c:196` | `nblockMAX = 100000 * level - 19` |
 | Range coder | 7-Zip `C/LzmaDec.c:11-26` | `kTopValue`, 11-bit probabilities, move bits, `NORMALIZE`, bit decode/update |
 | Range coder | 7-Zip `C/LzmaEnc.c:691-733` (`RangeEnc_ShiftLow`, `RangeEnc_FlushData`) | carry propagation through the cache byte, 5-byte flush |
+| LZMA decode | 7-Zip `C/LzmaDec.c:91-118` | model constants (length coder, slots, align bits, min match) |
+| LZMA decode | 7-Zip `C/LzmaDec.c:234-613` (`LZMA_DECODE_REAL`) | decode loop, matched literals (`291`), end marker (`525`) |
+| LZMA2 decode | 7-Zip `C/LzmaDec.c:911-922`, `C/Lzma2Dec.c:238-262` | what dictionary / state resets reset (position counter) |
+| LZMA encode | 7-Zip `C/LzmaEnc.c:1977-2100` (`GetOptimumFast`) | rep-vs-match thresholds, lazy step |
+| LZMA2 decode | xz `src/liblzma/lzma/lzma2_decoder.c:56-200` | control byte semantics, property and dictionary reset rules |
+| LZMA2 encode | xz `src/liblzma/lzma/lzma2_encoder.c:200-212` | storing chunks that did not compress, then a state reset |
+| LZMA props | xz `src/liblzma/lzma/lzma_decoder.c:1199` | lc/lp/pb byte |
+| xz | xz `doc/xz-file-format.txt:184-250`, `336-470`, `498-660`, `647-800`, `845-900` | varints, stream header/footer, block header, index, LZMA2 dictionary byte |
