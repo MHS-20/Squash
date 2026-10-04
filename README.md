@@ -11,6 +11,35 @@ make test         # unit, round-trip, robustness and interop tests
 make SAN=1 test   # the same under AddressSanitizer + UBSan (build-san/)
 ```
 
+Interop tests use whichever official tools are installed and report the
+rest as `SKIPPED`: `gzip`, Python's `zlib` module (zlib and raw DEFLATE),
+`bzip2`, `lz4`, `compress` (ncompress) and python-snappy. Point `PYTHON`
+at an interpreter that has python-snappy, and put `compress` on `PATH`:
+
+```
+PATH=/path/to/ncompress:$PATH PYTHON=/path/to/venv/bin/python make test
+```
+
+## CLI
+
+```
+squash [-f FORMAT] [-d] [-l LEVEL] [-c] [-F] [IN [OUT]]
+squash -L                       # list formats, suffixes and level ranges
+```
+
+- `-f` picks the format; when decompressing it is detected from the magic
+  number if omitted (raw formats without a magic need `-f`).
+- With no `IN`, reads standard input and writes standard output. With `IN`
+  only, writes `IN` plus the format's suffix (or strips it with `-d`).
+  `-c` forces standard output. The input file is never deleted, and an
+  existing output is not overwritten without `-F`.
+
+```
+squash -f gzip -l 9 notes.txt          # -> notes.txt.gz
+squash -d notes.txt.gz -c | less
+tar c dir | squash -f gzip > dir.tar.gz
+```
+
 ## Layout
 
 | File | Concept |
@@ -32,6 +61,8 @@ make SAN=1 test   # the same under AddressSanitizer + UBSan (build-san/)
 | `src/deflate.c` | raw DEFLATE front end |
 | `src/zlib.c` | zlib container |
 | `src/gzip.c` | gzip container (multi-member) |
+| `src/cli.c` | the `squash` command-line tool |
+| `tests/interop.sh` | both-direction interop with the official tools |
 | `tests/test.h` | tiny test harness |
 | `tests/test_*.c` | one unit test per module |
 | `tests/corpus.h` | generated inputs: empty, 1 byte, zeros, random, text, binary, boundary sizes, >1 block |
