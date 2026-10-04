@@ -236,6 +236,30 @@
   than a lone LZMA2 (BCJ, delta) are reported as unsupported.
 - `crc64.c` and `sha256.c` provide the two extra xz checks.
 
+## ANS: rANS, tANS/FSE
+
+- `rans.c` follows ryg_rans's byte-wise coder: state in [2^23, 2^31),
+  renormalised one byte at a time, 12-bit frequencies, encoder running
+  backwards into a buffer filled from the end. The interleaved variant
+  alternates two states over the symbols; the format work is identical,
+  but the two dependency chains can overlap in a CPU pipeline.
+- `fse.c` is tANS exactly as zstd needs it: the symbol spread (step
+  `size/2 + size/8 + 3`, "less than one" symbols at the top), decoding
+  tables of (symbol, bits, base), encoding tables of next states with
+  zstd's `deltaNbBits`/`deltaFindState` per symbol, the table description
+  format (variable-width counts with 2-bit zero-run flags), and a backward
+  bit reader in `bitio.h`.
+- Normalisation is not zstd's: rounded proportional shares, at least one
+  state per present symbol, -1 for symbols below one state (when allowed),
+  and the rounding error settled on the largest symbol. zstd's
+  `FSE_normalizeCount` uses fixed-point thresholds and a fallback method
+  (`FSE_normalizeM2`) for skewed inputs and does slightly better; any
+  normalisation that sums correctly is valid for the format. rANS reuses it
+  with the -1 option off.
+- The unit test checks the decoding table built from RFC 8878's predefined
+  literal-length distribution against the state listing in the RFC.
+- Both are teaching codecs with ad-hoc containers, kept out of the CLI.
+
 ## Upstream references (opened and verified)
 
 Pinned commits:
@@ -253,6 +277,8 @@ Pinned commits:
 | IlyaGrebnov/libsais | b6e52ef33fe14f9d5c14c580d162b6fd2c27f2a8 |
 | ip7z/7zip (LZMA SDK) | 0766b733fe3e06dd2a7f9a3cfbf2108ac73abd17 |
 | tukaani-project/xz | 3b1efb04d17c3a9ef7f473d73af13f1531428ffe |
+| rygorous/ryg_rans | c9d162d996fd600315af9ae8eb89d832576cb32d |
+| facebook/zstd | 01b7154f1172432f8abe9b3bb9909e14a1176b7d |
 
 | Module | Upstream file:line | What it informed |
 |---|---|---|
@@ -307,3 +333,9 @@ Pinned commits:
 | LZMA2 encode | xz `src/liblzma/lzma/lzma2_encoder.c:200-212` | storing chunks that did not compress, then a state reset |
 | LZMA props | xz `src/liblzma/lzma/lzma_decoder.c:1199` | lc/lp/pb byte |
 | xz | xz `doc/xz-file-format.txt:184-250`, `336-470`, `498-660`, `647-800`, `845-900` | varints, stream header/footer, block header, index, LZMA2 dictionary byte |
+| rANS | ryg_rans `rans_byte.h:50-140` | byte-wise rANS: L, x_max renormalisation, put/flush/init/advance |
+| rANS | ryg_rans `main.cpp:216-252` | two-way interleaving and flush order |
+| FSE | zstd `lib/common/entropy_common.c:43-190` (`FSE_readNCount_body`) | table description decoding, zero-run flags |
+| FSE | zstd `lib/compress/fse_compress.c` (`FSE_buildCTable_wksp`, `FSE_writeNCount`, `FSE_normalizeCount:465`) | encoding table, `deltaNbBits`, description writer, zstd's normaliser |
+| FSE | zstd `lib/common/fse_decompress.c:59` (`FSE_buildDTable_internal`) | decoding table construction |
+| FSE | zstd `lib/common/fse.h:443-466`, `623` | encoder state init/encode/flush, `FSE_TABLESTEP` |

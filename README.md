@@ -46,7 +46,7 @@ tar c dir | squash -f gzip > dir.tar.gz
 |---|---|
 | `src/squash.h` | public API and error codes |
 | `src/buf.[ch]` | growable output buffer, shared LZ77 back-reference copy |
-| `src/bitio.[ch]` | LSB-first and MSB-first bit readers and writers |
+| `src/bitio.[ch]` | LSB-first and MSB-first bit readers and writers, backward reader (zstd) |
 | `src/checksum.h` | checksum API |
 | `src/crc32.c` | CRC-32, CRC-32C, bzip2 CRC (table driven) |
 | `src/adler32.c` | Adler-32 |
@@ -89,6 +89,8 @@ tar c dir | squash -f gzip > dir.tar.gz
 | `src/lzma_alone.c` | .lzma container |
 | `src/lzma2.c` | LZMA2 chunking, both directions |
 | `src/xz.c` | .xz container |
+| `src/fse.[ch]` | FSE / tANS: normalisation, table description, coding tables, state machines, order-0 codec |
+| `src/rans.[ch]` | rANS order-0 codec, single and two-way interleaved |
 | `tests/test.h` | tiny test harness |
 | `tests/test_*.c` | one unit test per module |
 | `tests/corpus.h` | generated inputs: empty, 1 byte, zeros, random, text, binary, boundary sizes, >1 block |

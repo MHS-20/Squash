@@ -49,3 +49,22 @@ int bwm_flush(bitwriter_msb *bw)
         bwm_put(bw, 0, 8 - bw->count);
     return bw->err;
 }
+
+int brr_init(bitreader_rev *br, const uint8_t *p, size_t n)
+{
+    if (n == 0 || p[n - 1] == 0)
+        return SQ_ERR_DATA;
+    int top = 7;
+    while (!(p[n - 1] & (1u << top)))
+        top--;
+    br->start = p;
+    br->bits = 8 * (n - 1) + (size_t)top;  /* everything below the marker */
+    br->overrun = 0;
+    return SQ_OK;
+}
+
+int bwl_close_rev(bitwriter_lsb *bw)
+{
+    bwl_put(bw, 1, 1);
+    return bwl_flush(bw);
+}

@@ -30,6 +30,15 @@ typedef struct {
     int overrun;
 } bitreader_msb;
 
+/* Backward reader (zstd, FSE): the stream is written LSB-first and closed
+ * with a single 1 bit; the reader starts just below that marker at the end
+ * and reads toward the start, so the last value written is read first. */
+typedef struct {
+    const uint8_t *start;
+    size_t bits;     /* unread bits: positions [0, bits) from the start */
+    int overrun;
+} bitreader_rev;
+
 typedef struct {
     sq_buf *out;
     uint64_t bits;
@@ -48,6 +57,10 @@ void brl_init(bitreader_lsb *br, const uint8_t *p, size_t n);
 void brm_init(bitreader_msb *br, const uint8_t *p, size_t n);
 void bwl_init(bitwriter_lsb *bw, sq_buf *out);
 void bwm_init(bitwriter_msb *bw, sq_buf *out);
+/* SQ_ERR_DATA if the stream is empty or its last byte has no end marker. */
+int brr_init(bitreader_rev *br, const uint8_t *p, size_t n);
+/* Closes a backward stream: the 1-bit end marker, then zero padding. */
+int bwl_close_rev(bitwriter_lsb *bw);
 /* Pad the final partial byte with zeros; returns the sticky error. */
 int bwl_flush(bitwriter_lsb *bw);
 int bwm_flush(bitwriter_msb *bw);
@@ -139,6 +152,29 @@ static inline void brm_align(bitreader_msb *br) { brm_consume(br, br->count % 8)
 static inline size_t brm_tell(const bitreader_msb *br, const uint8_t *start)
 {
     return (size_t)(br->p - start) - br->count / 8;
+}
+
+/* ---- backward reader -------------------------------------------------- */
+
+/* Next n (<= 57) bits, i.e. the n bits just below the read position.
+ * Reading past the start yields zero bits and sets `overrun`. */
+static inline uint64_t brr_read(bitreader_rev *br, unsigned n)
+{
+    unsigned missing = 0;
+    if (n > br->bits) {
+        br->overrun = 1;
+        missing = n - (unsigned)br->bits;  /* bits before the start read as 0 */
+        n = (unsigned)br->bits;
+    }
+    size_t pos = br->bits - n;
+    br->bits = pos;
+    if (n == 0)
+        return 0;
+    uint64_t v = 0;
+    size_t first = pos >> 3, last = (pos + n - 1) >> 3;
+    for (size_t i = last + 1; i-- > first; )
+        v = v << 8 | br->start[i];
+    return ((v >> (pos & 7)) & ((1ull << n) - 1)) << missing;
 }
 
 /* ---- writers --------------------------------------------------------- */
