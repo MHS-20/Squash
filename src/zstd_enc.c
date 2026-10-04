@@ -404,6 +404,7 @@ int sq_zstd_compress(const uint8_t *in, size_t n, int level, sq_buf *out)
         .window = 1u << wlog, .max_dist = (1u << wlog) - 1,
         .min_match = ZSTD_MIN_MATCH, .max_match = ZSTD_MAX_MATCH,
         .max_chain = levels[level].chain, .nice_len = 256,
+        .hash_bits = wlog < 20 ? wlog : 20,
     };
     c->seq = malloc(sizeof(zseq) * (ZSTD_BLOCK_MAX / ZSTD_MIN_MATCH + 1));
     c->lit = malloc(ZSTD_BLOCK_MAX);

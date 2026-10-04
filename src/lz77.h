@@ -33,6 +33,8 @@ typedef struct {
                              by one byte if the next position matches longer */
     uint32_t end_margin;  /* matches must stop this many bytes before the end */
     uint32_t start_margin;/* and start at least this many before it */
+    uint32_t hash_bits;   /* log2 of hash buckets; 0 = 15. Large windows
+                             need more, or chains fill with collisions */
 } lz_params;
 
 /* The hash-chain match finder on its own, for encoders that drive their
@@ -44,6 +46,7 @@ typedef struct {
     size_t n;
     size_t limit;           /* matches end by here; callers coding in blocks lower it */
     const lz_params *p;
+    unsigned hash_bits;
     uint32_t *head, *prev;  /* positions + 1; 0 = none */
 } lz_matcher;
 
@@ -54,6 +57,10 @@ typedef struct {
 int lz_matcher_init(lz_matcher *m, const uint8_t *in, size_t n, const lz_params *p);
 void lz_matcher_free(lz_matcher *m);
 lz_match lz_matcher_find(const lz_matcher *m, size_t pos);
+/* Every match that is longer than all nearer ones, in increasing length
+ * (and so increasing distance): what an optimal parser weighs. Returns the
+ * count, at most `max` (further improvements replace the last entry). */
+size_t lz_matcher_find_all(const lz_matcher *m, size_t pos, lz_match *out, size_t max);
 void lz_matcher_insert(lz_matcher *m, size_t pos);
 
 void lz_seqs_init(lz_seqs *s);
@@ -62,8 +69,8 @@ void lz_seqs_free(lz_seqs *s);
 /* Hash-chain parser (greedy or lazy, per `p->lazy`). */
 int lz_parse(const uint8_t *in, size_t n, const lz_params *p, lz_seqs *out);
 
-/* Brute force: tries every distance at every position. Exponentially
- * slower; it exists as the obviously-correct baseline for tests and as the
+/* Brute force: tries every distance at every position, O(n * window).
+ * It exists as the obviously-correct baseline for tests and as the
  * starting point the hash chains improve on. */
 int lz_parse_naive(const uint8_t *in, size_t n, const lz_params *p, lz_seqs *out);
 

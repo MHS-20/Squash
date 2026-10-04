@@ -5,7 +5,7 @@
 
 #include "squash.h"
 
-#define HASH_BITS 15
+#define DEFAULT_HASH_BITS 15
 
 void lz_seqs_init(lz_seqs *s) { s->seq = NULL; s->n = s->cap = 0; }
 
@@ -85,7 +85,8 @@ int lz_matcher_init(lz_matcher *m, const uint8_t *in, size_t n, const lz_params 
     m->n = n;
     m->limit = n;
     m->p = p;
-    m->head = calloc((size_t)1 << HASH_BITS, sizeof(uint32_t));
+    m->hash_bits = p->hash_bits ? p->hash_bits : DEFAULT_HASH_BITS;
+    m->head = calloc((size_t)1 << m->hash_bits, sizeof(uint32_t));
     m->prev = calloc(p->window, sizeof(uint32_t));
     if (m->head && m->prev)
         return SQ_OK;
@@ -108,7 +109,7 @@ static uint32_t hash_at(const lz_matcher *m, size_t pos)
         v |= (uint32_t)s[3] << 24;
     /* Multiplicative (Fibonacci) hashing: the top bits of the product
      * depend on every input bit. */
-    return (v * 2654435761u) >> (32 - HASH_BITS);
+    return (v * 2654435761u) >> (32 - m->hash_bits);
 }
 
 void lz_matcher_insert(lz_matcher *m, size_t pos)
@@ -120,17 +121,18 @@ void lz_matcher_insert(lz_matcher *m, size_t pos)
     m->head[h] = (uint32_t)pos + 1;
 }
 
-lz_match lz_matcher_find(const lz_matcher *m, size_t pos)
+size_t lz_matcher_find_all(const lz_matcher *m, size_t pos, lz_match *out, size_t max)
 {
     const lz_params *p = m->p;
-    lz_match best = {0, 0};
-    uint32_t max = max_len_at(m->n, pos, p);
+    uint32_t limit = max_len_at(m->n, pos, p);
     if (pos >= m->limit)
-        return best;
-    if (max > m->limit - pos)
-        max = (uint32_t)(m->limit - pos);
-    if (max < p->min_match)
-        return best;
+        return 0;
+    if (limit > m->limit - pos)
+        limit = (uint32_t)(m->limit - pos);
+    if (limit < p->min_match || max == 0)
+        return 0;
+    size_t count = 0;
+    uint32_t best = p->min_match - 1;  /* only lengths above this count */
     uint32_t cand = m->head[hash_at(m, pos)];
     for (uint32_t tries = p->max_chain; cand && tries--; ) {
         size_t cpos = cand - 1;
@@ -140,19 +142,27 @@ lz_match lz_matcher_find(const lz_matcher *m, size_t pos)
         const uint8_t *a = m->in + cpos, *b = m->in + pos;
         /* The byte that would extend the best match must agree, otherwise
          * this candidate cannot beat it: a cheap early reject. */
-        if (a[best.len] == b[best.len]) {
-            uint32_t len = common_prefix(a, b, max);
-            if (len > best.len) {
-                best = (lz_match){len, (uint32_t)dist};
-                if (len >= p->nice_len || len == max)
+        if (a[best] == b[best]) {
+            uint32_t len = common_prefix(a, b, limit);
+            if (len > best) {
+                best = len;
+                if (count == max)
+                    count--;
+                out[count++] = (lz_match){len, (uint32_t)dist};
+                if (len >= p->nice_len || len == limit)
                     break;
             }
         }
         cand = m->prev[cpos & (p->window - 1)];
     }
-    if (best.len < p->min_match)
-        best.len = 0;
-    return best;
+    return count;
+}
+
+lz_match lz_matcher_find(const lz_matcher *m, size_t pos)
+{
+    lz_match all[8];
+    size_t k = lz_matcher_find_all(m, pos, all, 8);
+    return k ? all[k - 1] : (lz_match){0, 0};
 }
 
 int lz_parse(const uint8_t *in, size_t n, const lz_params *p, lz_seqs *out)

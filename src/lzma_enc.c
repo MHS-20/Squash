@@ -201,6 +201,7 @@ int lzma_encoder_init(lzma_encoder *e, const uint8_t *in, size_t n, int level)
         .window = 1u << dict_log, .max_dist = (1u << dict_log) - 1,
         .min_match = 3, .max_match = LZMA_MAX_MATCH,
         .max_chain = levels[level].chain, .nice_len = levels[level].nice,
+        .hash_bits = dict_log < 20 ? dict_log : 20,
     };
     int err = lzma_model_init(&e->m, ENC_LC, ENC_LP, ENC_PB);
     if (!err && (err = lz_matcher_init(&e->finder, in, n, &e->params)))

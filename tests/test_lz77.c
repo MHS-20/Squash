@@ -51,8 +51,11 @@ int main(void)
         n += l;
     }
 
-    lz_params deflate_like = {32768, 32768, 3, 258, 1u << 30, 258, 0, 0, 0};
-    lz_params lz4_like = {65536, 65535, 4, 1u << 30, 64, 1u << 30, 0, 5, 12};
+    lz_params deflate_like = {.window = 32768, .max_dist = 32768, .min_match = 3,
+                              .max_match = 258, .max_chain = 1u << 30, .nice_len = 258};
+    lz_params lz4_like = {.window = 65536, .max_dist = 65535, .min_match = 4,
+                          .max_match = 1u << 30, .max_chain = 64, .nice_len = 1u << 30,
+                          .end_margin = 5, .start_margin = 12};
 
     lz_seqs a, b;
     lz_seqs_init(&a);
@@ -94,6 +97,20 @@ int main(void)
         CHECK(lz_parse((const uint8_t *)"aaaaaaaaaaaaaaaaaaaa", len, &lazy, &a) == 0);
         CHECK(replay_ok(&a, (const uint8_t *)"aaaaaaaaaaaaaaaaaaaa", len, &lazy));
     }
+
+    /* find_all lists strictly improving matches, ending with the best. */
+    lz_matcher m;
+    CHECK(lz_matcher_init(&m, text, n, &deflate_like) == 0);
+    for (size_t i = 0; i < 3000; i++)
+        lz_matcher_insert(&m, i);
+    lz_match all[64];
+    size_t k = lz_matcher_find_all(&m, 3000, all, 64);
+    int ok = k > 0;
+    for (size_t i = 1; i < k; i++)
+        ok &= all[i].len > all[i - 1].len && all[i].dist > all[i - 1].dist;
+    CHECK(ok);
+    CHECK(k == 0 || all[k - 1].len == lz_matcher_find(&m, 3000).len);
+    lz_matcher_free(&m);
 
     lz_seqs_free(&a);
     lz_seqs_free(&b);
