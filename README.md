@@ -70,6 +70,10 @@ tar c dir | squash -f gzip > dir.tar.gz
 | `src/snappy.h` | Snappy constants and internal raw decoder |
 | `src/snappy_raw.c` | Snappy raw format encoder and decoder |
 | `src/snappy_frame.c` | Snappy framing format (chunks, masked CRC-32C) |
+| `src/sais.[ch]` | suffix array by induced sorting (SA-IS) |
+| `src/bwt.[ch]` | Burrows-Wheeler transform: naive, SA-IS based, inverse |
+| `src/mtf.[ch]` | move-to-front transform |
+| `src/rle.[ch]` | bzip2 RLE1 (byte runs) and RLE2 (RUNA/RUNB zero runs) |
 | `tests/test.h` | tiny test harness |
 | `tests/test_*.c` | one unit test per module |
 | `tests/corpus.h` | generated inputs: empty, 1 byte, zeros, random, text, binary, boundary sizes, >1 block |

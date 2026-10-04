@@ -138,6 +138,30 @@
   accepted as an empty stream, because the reference tools write nothing
   for empty input.
 
+## BWT, SA-IS, MTF, RLE
+
+- `bwt_naive` sorts rotations with `qsort` — the definition, kept as the
+  oracle the tests compare against. `bwt_forward` gets the same order in
+  linear time: the rotations of S are the length-n prefixes of the
+  suffixes of SS that start in the first half, so it builds the suffix
+  array of SS with SA-IS and keeps the entries below n. Doubling costs 2x
+  memory; bzip2 instead sorts rotations directly (`mainSort` with a
+  `fallbackSort` for repetitive data), and libsais has a dedicated BWT
+  entry point. Doubling keeps the suffix sorter generic and the BWT a few
+  lines.
+- `sais.c` is a plain recursive SA-IS: classify S/L types, place LMS
+  suffixes, induce, name LMS substrings, recurse if names repeat, induce
+  again. Types are a byte array and buckets are recomputed per pass;
+  libsais's in-place tricks and parallel scans are left out.
+- The inverse BWT is bzip2's: build `next[]` from cumulative counts and
+  follow it from the primary row.
+- MTF runs over the full 0..255 list; bzip2 first maps bytes to the
+  dense range of bytes in use so the list is short.
+- RLE1 is resumable with an output cap so the bzip2 encoder can fill a
+  block to exactly its size limit without splitting a run. RLE2's decoder
+  bounds the run digit weight like bzip2 (`N < 2M`), here against the
+  block size, so a long RUNA/RUNB string is an error, not an overflow.
+
 ## Upstream references (opened and verified)
 
 Pinned commits:
@@ -152,6 +176,7 @@ Pinned commits:
 | vapier/ncompress | 03592d7a4702bb83558b6f1520c2a6a5381374c8 |
 | lz4/lz4 | 0774d05537f9762f838f7ab541b7765f1a729cb5 |
 | google/snappy | 9c28114a38866f6deeaa826db918293bc28ae410 |
+| IlyaGrebnov/libsais | b6e52ef33fe14f9d5c14c580d162b6fd2c27f2a8 |
 
 | Module | Upstream file:line | What it informed |
 |---|---|---|
@@ -182,3 +207,10 @@ Pinned commits:
 | Snappy raw | snappy `format_description.txt:15-30`, `47-60`, `90-110` | varint preamble, literal and copy tag layouts |
 | Snappy raw | snappy `snappy.cc:619`, `671-730` (`EmitLiteral`, `EmitCopyAtMost64`, `EmitCopy`) | element emission and splitting of long copies |
 | Snappy framing | snappy `framing_format.txt:40-56`, `68-132` | masked CRC-32C, chunk types |
+| BWT | bzip2 `blocksort.c:1031-1089` (`BZ2_blockSort`) | rotation sort entry point and how `origPtr` is found |
+| BWT | bzip2 `blocksort.c:212` (`fallbackSort`) | the alternative for highly repetitive blocks |
+| SA-IS | libsais `src/libsais.c:459`, `726` | LMS gathering and bucket counting |
+| SA-IS | libsais `src/libsais.c:2157`, `2989` | left-to-right (L) and right-to-left (S) induction scans |
+| SA-IS | libsais `src/libsais.c:4103`, `6668`, `7097` | LMS renaming, recursion, BWT entry point |
+| RLE2 | bzip2 `compress.c:171-187` | zero runs as RUNA/RUNB, bijective base 2 |
+| RLE2 | bzip2 `decompress.c:385-399` | run decoding and its overflow guard |
