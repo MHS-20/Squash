@@ -64,6 +64,9 @@ tar c dir | squash -f gzip > dir.tar.gz
 | `src/cli.c` | the `squash` command-line tool |
 | `tests/interop.sh` | both-direction interop with the official tools |
 | `src/lzw.c` | LZW in the Unix `compress` (.Z) format |
+| `src/lz4.h` | LZ4 constants and block API |
+| `src/lz4_block.c` | LZ4 block format encoder and decoder |
+| `src/lz4_frame.c` | LZ4 frame format (plus skippable and legacy frames) |
 | `tests/test.h` | tiny test harness |
 | `tests/test_*.c` | one unit test per module |
 | `tests/corpus.h` | generated inputs: empty, 1 byte, zeros, random, text, binary, boundary sizes, >1 block |

@@ -93,4 +93,15 @@ if have compress; then
     report lzw
 else skip lzw "compress (ncompress)"; fi
 
+# ---- LZ4 frame --------------------------------------------------------------
+if have lz4; then
+    pass=0 fail=0
+    ours_to lz4 lz4 -dc
+    for opt in -1 -9 -12 "-1 -BD -B4" "-9 -BX -B5" "-1 --no-frame-crc --content-size" "-1 -l"; do
+        # shellcheck disable=SC2086
+        tool_to lz4 lz4 -c $opt
+    done
+    report lz4
+else skip lz4 lz4; fi
+
 exit $fails

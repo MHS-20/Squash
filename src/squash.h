@@ -29,5 +29,7 @@ int sq_gzip_compress(const uint8_t *in, size_t n, int level, sq_buf *out);
 int sq_gzip_decompress(const uint8_t *in, size_t n, sq_buf *out);
 int sq_lzw_compress(const uint8_t *in, size_t n, int level, sq_buf *out);
 int sq_lzw_decompress(const uint8_t *in, size_t n, sq_buf *out);
+int sq_lz4_compress(const uint8_t *in, size_t n, int level, sq_buf *out);
+int sq_lz4_decompress(const uint8_t *in, size_t n, sq_buf *out);
 
 #endif

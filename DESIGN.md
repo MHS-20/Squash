@@ -100,6 +100,26 @@
 - `gzip -d` can also read `.Z` files but rejects valid `-b 9` streams from
   ncompress itself, so interop uses it only for the default width.
 
+## LZ4
+
+- Block encoding reuses `lz_parse` with LZ4's limits: 4-byte minimum,
+  65535 maximum offset, unbounded length, and the end-of-block rules (last
+  5 bytes literal, last match starting at least 12 bytes before the end)
+  expressed as `end_margin` / `start_margin`. Levels 1-5 are greedy with
+  chains of 1-16; 6-9 are lazy with longer chains, standing in for LZ4-HC.
+  LZ4-HC's real optimal parser is not implemented.
+- The frame encoder writes independent 4 MB blocks with content size and
+  content checksum, and stores a block raw when compression does not shrink
+  it, as the spec requires.
+- The decoder accepts everything `lz4` writes: linked or independent
+  blocks, block checksums, every block size, content size (verified),
+  skippable frames, legacy frames, and concatenated frames. Dictionary IDs
+  are reported as unsupported.
+- The decoder is lenient about the end-of-block rules (the spec allows
+  rejecting violations but does not require it) and strict about bounds:
+  every literal run, offset and match is checked against the input, the
+  bytes already produced, and the block's maximum size.
+
 ## Upstream references (opened and verified)
 
 Pinned commits:
@@ -112,6 +132,7 @@ Pinned commits:
 | ebiggers/libdeflate | 92e6a0db9fa848d742f9eb286c92afc60f2c3dda |
 | richgel999/miniz | 2948eebafc5b9f1c69bebed80333e403a09bd62d |
 | vapier/ncompress | 03592d7a4702bb83558b6f1520c2a6a5381374c8 |
+| lz4/lz4 | 0774d05537f9762f838f7ab541b7765f1a729cb5 |
 
 | Module | Upstream file:line | What it informed |
 |---|---|---|
@@ -135,3 +156,7 @@ Pinned commits:
 | LZW | ncompress `compress.c:1082-1108` | ratio check and CLEAR |
 | LZW | ncompress `compress.c:1345-1356`, `1373-1380` | decoder widening, CLEAR handling and padding |
 | LZW | ncompress `compress.c:1386-1393`, `1449-1453` | KwKwK case, entry creation limit |
+| LZ4 block | lz4 `doc/lz4_Block_format.md:110-130` | end-of-block conditions |
+| LZ4 block | lz4 `lib/lz4.c:243-264` | `MINMATCH`, `LASTLITERALS`, `MFLIMIT`, token nibble masks |
+| LZ4 frame | lz4 `doc/lz4_Frame_format.md:126-195`, `240-300`, `333`, `360-400` | descriptor flags, block size field, skippable and legacy frames |
+| LZ4 frame | lz4 `lib/lz4frame.c:351`, `1444` | header checksum = second byte of XXH32 of the descriptor |
