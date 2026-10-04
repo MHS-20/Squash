@@ -23,5 +23,6 @@ make SAN=1 test   # the same under AddressSanitizer + UBSan (build-san/)
 | `src/adler32.c` | Adler-32 |
 | `src/xxhash.c` | xxHash32 / xxHash64 |
 | `src/huffman.[ch]` | code lengths, length limit, canonical codes, LSB table and MSB canonical decoders |
+| `src/lz77.[ch]` | LZ77 parsing: naive and hash-chain (greedy / lazy) match finders |
 | `tests/test.h` | tiny test harness |
 | `tests/test_*.c` | one unit test per module |

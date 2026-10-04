@@ -34,6 +34,22 @@
 - Over-subscribed length sets are rejected. Incomplete sets are accepted,
   but unused bit patterns decode to an error rather than a symbol.
 
+## LZ77 match finding
+
+- One parser (`lz_parse`) produces `(literal run, match length, distance)`
+  sequences for every LZ77 format; each format only supplies limits
+  (window, min/max length, LZ4's end-of-block margins).
+- Hash chains as in zlib: `head[hash]` holds the newest position with that
+  hash and `prev[pos % window]` links older ones. The chain is cut by
+  `max_chain` (speed/ratio knob) and by `nice_len` (good enough, stop).
+- Lazy matching is zlib's `deflate_slow` idea with one step of lookahead: a
+  match shorter than `lazy` is held back one byte, and dropped for a literal
+  if the next position matches longer. Greedy is `lazy = 0`.
+- `lz_parse_naive` is the brute-force baseline. With an unbounded chain the
+  greedy hash-chain parse is identical to it, which the unit test checks.
+- Every position, including those inside matches, is inserted. zlib skips
+  insertion inside long matches at fast levels; that is a speed trick only.
+
 ## Upstream references (opened and verified)
 
 Pinned commits:
@@ -53,3 +69,6 @@ Pinned commits:
 | Huffman | zlib `trees.c:540-593` (`gen_bitlen` overflow fix), `trees.c:203-227` (`gen_codes`) | canonical code assignment; zlib's alternative to flattening |
 | Huffman | zlib `inftrees.c:139-147` | over-subscribed / incomplete checks |
 | Huffman | bzip2 `huffman.c:63-147` (`BZ2_hbMakeCodeLengths`) | length limiting by weight halving |
+| LZ77 | zlib `deflate.c:112-123` (`configuration_table`) | good/lazy/nice/chain knobs per level |
+| LZ77 | zlib `deflate.c:1390-1425` (`longest_match`) | chain walk, distance limit, chain shortening |
+| LZ77 | zlib `deflate.c:1957-2100` (`deflate_slow`) | one-step lazy evaluation |
