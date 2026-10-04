@@ -6,8 +6,11 @@
 #include <stdint.h>
 
 /* Hard ceiling on any single output. A corrupt stream can legally describe
- * an enormous expansion; refusing past this keeps decoders bounded. */
+ * an enormous expansion; refusing past this keeps decoders bounded. The
+ * fuzzing build lowers it. */
+#ifndef SQ_BUF_MAX
 #define SQ_BUF_MAX ((size_t)1 << 32)
+#endif
 
 typedef struct {
     uint8_t *data;

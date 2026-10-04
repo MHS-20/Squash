@@ -20,12 +20,28 @@ at an interpreter that has python-snappy, and put `compress` on `PATH`:
 PATH=/path/to/ncompress:$PATH PYTHON=/path/to/venv/bin/python make test
 ```
 
+## Benchmark and fuzzing
+
+```
+make bench                                   # generated text, binary, random data
+scripts/fetch-silesia.sh                     # Silesia corpus into bench/silesia
+make bench BENCH_FILES="bench/silesia/*"
+build/squash bench -a FILE...                # also the fastest and strongest levels
+make fuzz FUZZ_TIME=300                      # libFuzzer over every decoder (clang)
+```
+
+`squash bench` prints compression ratio and MB/s (compress, decompress)
+for every format, then the same for the installed reference tools
+(`gzip`, `bzip2`, `lz4`, `xz`, `zstd`, `compress`), which are timed as
+processes and so include start-up and file I/O.
+
 ## CLI
 
 ```
-squash [-f FORMAT] [-d] [-l LEVEL] [-c] [-F] [IN [OUT]]
+squash [-f FORMAT] [-d] [-l LEVEL] [-c] [-F] [-D DICT] [IN [OUT]]
 squash -L                       # list formats, suffixes and level ranges
 squash -d -D dict file.zst      # zstd with a dictionary
+squash bench [-a] [FILES...]    # ratio and speed table
 ```
 
 - `-f` picks the format; when decompressing it is detected from the magic
@@ -63,6 +79,9 @@ tar c dir | squash -f gzip > dir.tar.gz
 | `src/zlib.c` | zlib container |
 | `src/gzip.c` | gzip container (multi-member) |
 | `src/cli.c` | the `squash` command-line tool |
+| `src/bench.c` | `squash bench`: ratio and speed against the system tools |
+| `scripts/fetch-silesia.sh` | downloads the Silesia corpus for benchmarking |
+| `fuzz/fuzz_decode.c`, `fuzz/seed.sh` | libFuzzer target over all decoders, and its seed corpus |
 | `tests/interop.sh` | both-direction interop with the official tools |
 | `src/lzw.c` | LZW in the Unix `compress` (.Z) format |
 | `src/lz4.h` | LZ4 constants and block API |

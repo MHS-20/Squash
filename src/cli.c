@@ -8,6 +8,8 @@
 
 #include "codec.h"
 
+int bench_main(int argc, char **argv);
+
 static void usage(FILE *f)
 {
     fprintf(f,
@@ -20,8 +22,12 @@ static void usage(FILE *f)
             "  -F         overwrite an existing output file\n"
             "  -D DICT    zstd dictionary (raw or from `zstd --train`), decompression only\n"
             "  -L         list formats\n"
+            "       squash bench [-a] [FILES...]\n"
             "With no IN, read standard input. With IN but no OUT, write IN plus the\n"
-            "format's suffix (or IN minus it when decompressing). IN is kept.\n");
+            "format's suffix (or IN minus it when decompressing). IN is kept.\n"
+            "bench reports ratio and MB/s for every format (default level; -a adds\n"
+            "the fastest and strongest) and for installed reference tools; without\n"
+            "FILES it uses generated text, binary and random data.\n");
 }
 
 static int read_all(FILE *f, sq_buf *b)
@@ -62,6 +68,8 @@ static void list_formats(void)
 
 int main(int argc, char **argv)
 {
+    if (argc > 1 && strcmp(argv[1], "bench") == 0)
+        return bench_main(argc - 1, argv + 1);
     const char *fmt = NULL, *dict_name = NULL;
     int decompress = 0, level = 0, to_stdout = 0, force = 0, opt;
     while ((opt = getopt(argc, argv, "f:dl:cFD:Lh")) != -1) {
