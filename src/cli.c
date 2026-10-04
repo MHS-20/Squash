@@ -14,6 +14,7 @@ static void usage(FILE *f)
 {
     fprintf(f,
             "usage: squash [-f FORMAT] [-d] [-l LEVEL] [-c] [-F] [-D DICT] [IN [OUT]]\n"
+            "       squash bench [-a] [FILES...]\n"
             "  -f FORMAT  format to write (required to compress); detected\n"
             "             from the magic number when decompressing\n"
             "  -d         decompress\n"
@@ -22,7 +23,6 @@ static void usage(FILE *f)
             "  -F         overwrite an existing output file\n"
             "  -D DICT    zstd dictionary (raw or from `zstd --train`), decompression only\n"
             "  -L         list formats\n"
-            "       squash bench [-a] [FILES...]\n"
             "With no IN, read standard input. With IN but no OUT, write IN plus the\n"
             "format's suffix (or IN minus it when decompressing). IN is kept.\n"
             "bench reports ratio and MB/s for each codec at its default level and for\n"
