@@ -260,6 +260,42 @@
   literal-length distribution against the state listing in the RFC.
 - Both are teaching codecs with ad-hoc containers, kept out of the CLI.
 
+## zstd
+
+- Decoder (`zstd_dec.c`) follows RFC 8878 section by section: frames
+  (single-segment or window descriptor, dictionary ID, content size,
+  XXH64 checksum, skippable frames, concatenation), blocks (raw, RLE,
+  compressed, 128 KiB limit), literals (raw, RLE, Huffman with 1 or 4
+  streams, treeless reuse), sequences (predefined, RLE, FSE and repeat
+  tables; offset, match and literal extra bits read in that order; states
+  updated LL, ML, OF) and repeat offsets. Every literal run, match and
+  table is bounds-checked, and every backward stream must be consumed
+  exactly.
+- The frame is decoded into a scratch buffer that starts with the
+  dictionary content, so references into the dictionary are ordinary
+  back-references. Dictionaries may be raw content or `zstd --train`
+  output (entropy tables plus starting offsets). The CLI exposes this as
+  `-D`.
+- `huf0.c` is zstd's Huffman: weights instead of lengths, codes assigned
+  longest-first, FSE-compressed weights with two interleaved states that
+  stop when an update would read past the start. The encoder FSE-codes its
+  weights like zstd, decodes them back to check that stop rule holds, and
+  falls back to the 4-bit direct form otherwise.
+- Encoder (`zstd_enc.c`): hash-chain parse per 128 KiB block (matches may
+  reach into earlier blocks), preferring a repeat offset unless a new match
+  is at least two bytes longer, with one step of lazy evaluation. Offsets
+  are expressed as repeat codes whenever the history allows, using the
+  same `zstd_resolve_offset` the decoder runs. Literals use Huffman (4
+  streams from 256 bytes) when it beats raw; each sequence symbol type
+  picks RLE, the predefined table or a freshly normalised FSE table by
+  estimated bit cost. Blocks that do not shrink are sent raw, all-equal
+  blocks as RLE (restoring the repeat offsets the parse moved, since the
+  decoder only updates them on compressed blocks).
+- Levels 1-19 vary window (512 KiB-8 MiB), chain length and lazy
+  threshold. zstd's real strategies (double-fast, lazy2, btopt, btultra
+  with optimal parsing) are not implemented; at level 3 the output is
+  within 0.2% of `zstd -3` on source code, at 19 about 12% larger.
+
 ## Upstream references (opened and verified)
 
 Pinned commits:
@@ -339,3 +375,11 @@ Pinned commits:
 | FSE | zstd `lib/compress/fse_compress.c` (`FSE_buildCTable_wksp`, `FSE_writeNCount`, `FSE_normalizeCount:465`) | encoding table, `deltaNbBits`, description writer, zstd's normaliser |
 | FSE | zstd `lib/common/fse_decompress.c:59` (`FSE_buildDTable_internal`) | decoding table construction |
 | FSE | zstd `lib/common/fse.h:443-466`, `623` | encoder state init/encode/flush, `FSE_TABLESTEP` |
+| zstd | zstd `doc/zstd_compression_format.md:107-450` | frame header, window, block types and limits |
+| zstd | zstd `doc/zstd_compression_format.md:450-646` | literals header size formats, jump table |
+| zstd | zstd `doc/zstd_compression_format.md:647-1066` | sequences header, codes and baselines, decode order, default distributions, repeat offsets |
+| zstd | zstd `doc/zstd_compression_format.md:1257-1552`, dictionary format section | Huffman weights, FSE-coded weights, code assignment, dictionaries |
+| zstd decode | zstd `doc/educational_decoder/zstd_decompress.c:868-990`, `1005`, `1234`, `2048` | Huffman table reading, sequence decoding/execution, two-state weight decoding |
+| zstd decode | zstd `lib/decompress/zstd_decompress_block.c:647`, `695`, `1237` | sequence tables, sequence header, `ZSTD_decodeSequence` |
+| zstd encode | zstd `lib/compress/zstd_compress_sequences.c:292-390` (`ZSTD_encodeSequences_body`) | backward sequence encoding order: init, extra bits, state order, flush |
+| zstd encode | zstd `lib/compress/zstd_compress_literals.c:129` | literal block choices |

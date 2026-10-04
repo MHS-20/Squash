@@ -140,4 +140,26 @@ if have xz; then
     report lzma
 else skip xz xz; skip lzma xz; fi
 
+# ---- zstd ---------------------------------------------------------------------
+if have zstd; then
+    pass=0 fail=0
+    ours_to zstd zstd -dc
+    for opt in -1 -3 -9 -19 "--ultra -22" "--long=24 -3" "-3 --no-check --no-content-size" \
+               "--fast=3" "-6 -B65536"; do
+        # shellcheck disable=SC2086
+        tool_to zstd zstd -q -c $opt
+    done
+    # Dictionary trained on our own sources, used on one of them.
+    src_files=$(ls "$src_dir"/*.c "$src_dir"/*.h)
+    # shellcheck disable=SC2086
+    if zstd -q --train $src_files -o "$T/dict" --maxdict=8192 2>/dev/null; then
+        for f in "$src_dir/lz77.c" "$src_dir/huffman.h"; do
+            if zstd -q -D "$T/dict" -c "$f" > "$T/z" && "$SQ" -d -D "$T/dict" -c "$T/z" > "$T/o" &&
+               cmp -s "$T/o" "$f"; then result "zstd dictionary $f" ok
+            else result "zstd dictionary $f" bad; fi
+        done
+    fi
+    report zstd
+else skip zstd zstd; fi
+
 exit $fails

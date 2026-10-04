@@ -13,7 +13,7 @@ make SAN=1 test   # the same under AddressSanitizer + UBSan (build-san/)
 
 Interop tests use whichever official tools are installed and report the
 rest as `SKIPPED`: `gzip`, Python's `zlib` module (zlib and raw DEFLATE),
-`bzip2`, `lz4`, `xz`, `compress` (ncompress) and python-snappy. Point `PYTHON`
+`bzip2`, `lz4`, `xz`, `zstd`, `compress` (ncompress) and python-snappy. Point `PYTHON`
 at an interpreter that has python-snappy, and put `compress` on `PATH`:
 
 ```
@@ -25,6 +25,7 @@ PATH=/path/to/ncompress:$PATH PYTHON=/path/to/venv/bin/python make test
 ```
 squash [-f FORMAT] [-d] [-l LEVEL] [-c] [-F] [IN [OUT]]
 squash -L                       # list formats, suffixes and level ranges
+squash -d -D dict file.zst      # zstd with a dictionary
 ```
 
 - `-f` picks the format; when decompressing it is detected from the magic
@@ -91,6 +92,11 @@ tar c dir | squash -f gzip > dir.tar.gz
 | `src/xz.c` | .xz container |
 | `src/fse.[ch]` | FSE / tANS: normalisation, table description, coding tables, state machines, order-0 codec |
 | `src/rans.[ch]` | rANS order-0 codec, single and two-way interleaved |
+| `src/huf0.[ch]` | zstd Huffman: weights, tree description, 1/4-stream coding |
+| `src/zstd.h` | zstd constants and shared declarations |
+| `src/zstd_tables.c` | code baselines, default distributions, repeat-offset rules |
+| `src/zstd_dec.c` | zstd decoder (frames, blocks, literals, sequences, dictionaries) |
+| `src/zstd_enc.c` | zstd encoder |
 | `tests/test.h` | tiny test harness |
 | `tests/test_*.c` | one unit test per module |
 | `tests/corpus.h` | generated inputs: empty, 1 byte, zeros, random, text, binary, boundary sizes, >1 block |

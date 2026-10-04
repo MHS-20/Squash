@@ -12,6 +12,7 @@ const sq_codec sq_codecs[] = {
     {"lz4", ".lz4", "\x04\x22\x4d\x18", 4, 1, 9, sq_lz4_compress, sq_lz4_decompress},
     {"snappy", ".sz", "\xff\x06\x00\x00sNaPpY", 10, 1, 1, sq_snappy_compress, sq_snappy_decompress},
     {"bzip2", ".bz2", "BZh", 3, 1, 9, sq_bzip2_compress, sq_bzip2_decompress},
+    {"zstd", ".zst", "\x28\xb5\x2f\xfd", 4, 1, 19, sq_zstd_compress, sq_zstd_decompress},
     {"xz", ".xz", "\xfd" "7zXZ\x00", 6, 1, 9, sq_xz_compress, sq_xz_decompress},
     /* .lzma has no magic; its usual first byte 0x5D (lc=3 lp=0 pb=2) is
      * too common to detect on. */

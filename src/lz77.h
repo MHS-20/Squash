@@ -42,6 +42,7 @@ typedef struct {
 typedef struct {
     const uint8_t *in;
     size_t n;
+    size_t limit;           /* matches end by here; callers coding in blocks lower it */
     const lz_params *p;
     uint32_t *head, *prev;  /* positions + 1; 0 = none */
 } lz_matcher;

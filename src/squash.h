@@ -44,5 +44,11 @@ int sq_lzma_compress(const uint8_t *in, size_t n, int level, sq_buf *out);
 int sq_lzma_decompress(const uint8_t *in, size_t n, sq_buf *out);
 int sq_xz_compress(const uint8_t *in, size_t n, int level, sq_buf *out);
 int sq_xz_decompress(const uint8_t *in, size_t n, sq_buf *out);
+/* zstd (RFC 8878). The _dict variant takes a dictionary, raw or in the
+ * `zstd --train` format. */
+int sq_zstd_compress(const uint8_t *in, size_t n, int level, sq_buf *out);
+int sq_zstd_decompress(const uint8_t *in, size_t n, sq_buf *out);
+int sq_zstd_decompress_dict(const uint8_t *in, size_t n, const uint8_t *dict, size_t dict_len,
+                            sq_buf *out);
 
 #endif

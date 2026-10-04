@@ -177,6 +177,24 @@ static inline uint64_t brr_read(bitreader_rev *br, unsigned n)
     return ((v >> (pos & 7)) & ((1ull << n) - 1)) << missing;
 }
 
+/* Peeks without consuming: Huffman decoding looks at the longest code
+ * length, then consumes only the bits the symbol used. */
+static inline uint64_t brr_peek(const bitreader_rev *br, unsigned n)
+{
+    bitreader_rev copy = *br;
+    return brr_read(&copy, n);
+}
+
+static inline void brr_consume(bitreader_rev *br, unsigned n)
+{
+    if (n > br->bits) {
+        br->overrun = 1;
+        br->bits = 0;
+    } else {
+        br->bits -= n;
+    }
+}
+
 /* ---- writers --------------------------------------------------------- */
 
 /* Append the low n (<= 32) bits of v. */

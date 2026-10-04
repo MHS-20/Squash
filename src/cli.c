@@ -11,13 +11,14 @@
 static void usage(FILE *f)
 {
     fprintf(f,
-            "usage: squash [-f FORMAT] [-d] [-l LEVEL] [-c] [-F] [IN [OUT]]\n"
+            "usage: squash [-f FORMAT] [-d] [-l LEVEL] [-c] [-F] [-D DICT] [IN [OUT]]\n"
             "  -f FORMAT  format to write (required to compress); detected\n"
             "             from the magic number when decompressing\n"
             "  -d         decompress\n"
             "  -l LEVEL   compression level (format specific; default 0 = format default)\n"
             "  -c         write to standard output\n"
             "  -F         overwrite an existing output file\n"
+            "  -D DICT    zstd dictionary (raw or from `zstd --train`), decompression only\n"
             "  -L         list formats\n"
             "With no IN, read standard input. With IN but no OUT, write IN plus the\n"
             "format's suffix (or IN minus it when decompressing). IN is kept.\n");
@@ -61,15 +62,16 @@ static void list_formats(void)
 
 int main(int argc, char **argv)
 {
-    const char *fmt = NULL;
+    const char *fmt = NULL, *dict_name = NULL;
     int decompress = 0, level = 0, to_stdout = 0, force = 0, opt;
-    while ((opt = getopt(argc, argv, "f:dl:cFLh")) != -1) {
+    while ((opt = getopt(argc, argv, "f:dl:cFD:Lh")) != -1) {
         switch (opt) {
         case 'f': fmt = optarg; break;
         case 'd': decompress = 1; break;
         case 'l': level = atoi(optarg); break;
         case 'c': to_stdout = 1; break;
         case 'F': force = 1; break;
+        case 'D': dict_name = optarg; break;
         case 'L': list_formats(); return 0;
         case 'h': usage(stdout); return 0;
         default: usage(stderr); return 2;
@@ -114,8 +116,24 @@ int main(int argc, char **argv)
                 codec->max_level);
         return 2;
     }
-    int err = decompress ? codec->decompress(in.data, in.len, &out)
-                         : codec->compress(in.data, in.len, level, &out);
+    sq_buf dict;
+    sq_buf_init(&dict);
+    if (dict_name) {
+        FILE *fd = fopen(dict_name, "rb");
+        if (!decompress || strcmp(codec->name, "zstd") != 0) {
+            fprintf(stderr, "squash: -D only applies to zstd decompression\n");
+            return 2;
+        }
+        if (!fd || read_all(fd, &dict)) {
+            fprintf(stderr, "squash: %s: %s\n", dict_name, strerror(errno));
+            return 1;
+        }
+        fclose(fd);
+    }
+    int err = dict_name ? sq_zstd_decompress_dict(in.data, in.len, dict.data, dict.len, &out)
+              : decompress ? codec->decompress(in.data, in.len, &out)
+                           : codec->compress(in.data, in.len, level, &out);
+    sq_buf_free(&dict);
     if (err) {
         fprintf(stderr, "squash: %s: %s\n", codec->name, sq_strerror(err));
         return 1;

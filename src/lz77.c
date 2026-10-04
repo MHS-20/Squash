@@ -83,6 +83,7 @@ int lz_matcher_init(lz_matcher *m, const uint8_t *in, size_t n, const lz_params 
 {
     m->in = in;
     m->n = n;
+    m->limit = n;
     m->p = p;
     m->head = calloc((size_t)1 << HASH_BITS, sizeof(uint32_t));
     m->prev = calloc(p->window, sizeof(uint32_t));
@@ -124,6 +125,10 @@ lz_match lz_matcher_find(const lz_matcher *m, size_t pos)
     const lz_params *p = m->p;
     lz_match best = {0, 0};
     uint32_t max = max_len_at(m->n, pos, p);
+    if (pos >= m->limit)
+        return best;
+    if (max > m->limit - pos)
+        max = (uint32_t)(m->limit - pos);
     if (max < p->min_match)
         return best;
     uint32_t cand = m->head[hash_at(m, pos)];
