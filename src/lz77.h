@@ -56,6 +56,7 @@ typedef struct {
 
 int lz_matcher_init(lz_matcher *m, const uint8_t *in, size_t n, const lz_params *p);
 void lz_matcher_free(lz_matcher *m);
+/* Search `pos` before inserting it: once inserted it would match itself. */
 lz_match lz_matcher_find(const lz_matcher *m, size_t pos);
 /* Every match that is longer than all nearer ones, in increasing length
  * (and so increasing distance): what an optimal parser weighs. Returns the

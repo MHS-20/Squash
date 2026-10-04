@@ -59,7 +59,7 @@ int lzma2_compress(const uint8_t *in, size_t n, int level, sq_buf *out, uint32_t
              * while the decoder's will not, so the next LZMA chunk must
              * reset the state on both sides. */
             err = put_stored(out, in + start, unc, first);
-            lzma_model_reset(&e.m);
+            lzma_encoder_reset_state(&e);
             need_state_reset = 1;
             need_props |= first;  /* a dictionary reset demands new props */
             first = 0;

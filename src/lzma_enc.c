@@ -1,7 +1,7 @@
-/* LZMA encoder: a greedy parse with one step of lazy evaluation and
- * repeat-distance preferences (the strategy of the LZMA SDK's "fast" mode),
- * coding each decision with the shared model. The SDK's optimal parser,
- * which prices whole paths of decisions, is not implemented. */
+/* LZMA encoder: coding primitives for each kind of decision, and the fast
+ * parser — greedy with one step of lazy evaluation and repeat-distance
+ * preferences, the strategy of the LZMA SDK's "fast" mode. Levels 7-9 hand
+ * the choice of decisions to the optimal parser in lzma_opt.c instead. */
 #include <stdlib.h>
 
 #include "lzma.h"
@@ -13,12 +13,12 @@
 #define ENC_PB 2
 
 static const struct {
-    uint8_t dict_log;
+    uint8_t dict_log, optimal;
     uint16_t chain, nice;
 } levels[10] = {
-    {0, 0, 0},
-    {20, 4, 16}, {21, 8, 32}, {22, 16, 48}, {22, 24, 64}, {23, 32, 96},
-    {23, 64, 128}, {24, 128, 192}, {24, 256, 273}, {24, 1024, 273},
+    {0, 0, 0, 0},
+    {20, 0, 4, 16}, {21, 0, 8, 32}, {22, 0, 16, 48}, {22, 0, 24, 64}, {23, 0, 32, 96},
+    {23, 0, 64, 128}, {24, 1, 16, 32}, {24, 1, 32, 64}, {24, 1, 256, 128},
 };
 
 /* ---- coding primitives ----------------------------------------------- */
@@ -39,19 +39,10 @@ static void encode_len(rc_encoder *rc, lzma_len_model *l, uint32_t len, unsigned
     }
 }
 
-/* Slot = 2 * floor(log2(dist)) + the bit below the top one. */
-static unsigned dist_slot(uint32_t dist)
-{
-    if (dist < 4)
-        return dist;
-    unsigned top = 31 - (unsigned)__builtin_clz(dist);
-    return 2 * top + ((dist >> (top - 1)) & 1);
-}
-
 static void encode_dist(rc_encoder *rc, lzma_model *m, uint32_t dist, uint32_t len)
 {
     unsigned len_state = len < LZMA_LEN_STATES ? len : LZMA_LEN_STATES - 1;
-    unsigned slot = dist_slot(dist);
+    unsigned slot = lzma_dist_slot(dist);
     rc_enc_tree(rc, m->dist_slot[len_state], LZMA_DIST_SLOT_BITS, slot);
     if (slot < 4)
         return;
@@ -148,38 +139,6 @@ static void encode_match(lzma_encoder *e, rc_encoder *rc, uint32_t dist, uint32_
     m->state = lzma_after_match(m->state);
 }
 
-/* ---- pricing the literal / short-rep choice -------------------------- */
-
-static uint32_t literal_price(const lzma_encoder *e)
-{
-    const lzma_model *m = &e->m;
-    const rc_prob *probs = literal_probs(e);
-    unsigned byte = e->in[e->pos], sym = 1;
-    uint32_t price = rc_bit_price(m->is_match[m->state][pos_state(e)], 0);
-    int matched = m->state >= LZMA_NUM_LIT_STATES;
-    unsigned match_byte = matched ? e->in[e->pos - m->rep[0] - 1] : 0;
-    for (int i = 7; i >= 0; i--) {
-        unsigned bit = (byte >> i) & 1;
-        if (matched) {
-            unsigned match_bit = (match_byte >> i) & 1;
-            price += rc_bit_price(probs[((1 + match_bit) << 8) + sym], bit);
-            matched = bit == match_bit;
-        } else {
-            price += rc_bit_price(probs[sym], bit);
-        }
-        sym = sym << 1 | bit;
-    }
-    return price;
-}
-
-static uint32_t shortrep_price(const lzma_encoder *e)
-{
-    const lzma_model *m = &e->m;
-    unsigned ps = pos_state(e);
-    return rc_bit_price(m->is_match[m->state][ps], 1) + rc_bit_price(m->is_rep[m->state], 1) +
-           rc_bit_price(m->is_rep_g0[m->state], 0) + rc_bit_price(m->is_rep0_long[m->state][ps], 0);
-}
-
 /* ---- parsing --------------------------------------------------------- */
 
 int lzma_encoder_init(lzma_encoder *e, const uint8_t *in, size_t n, int level)
@@ -192,11 +151,8 @@ int lzma_encoder_init(lzma_encoder *e, const uint8_t *in, size_t n, int level)
     unsigned dict_log = levels[level].dict_log;
     while (dict_log > 12 && ((size_t)1 << (dict_log - 1)) >= n)
         dict_log--;
-    e->in = in;
-    e->n = n;
-    e->pos = 0;
-    e->cached_pos = SIZE_MAX;
-    e->nice_len = levels[level].nice;
+    *e = (lzma_encoder){.in = in, .n = n, .cached_pos = SIZE_MAX, .nice_len = levels[level].nice,
+                        .optimal = levels[level].optimal};
     e->params = (lz_params){
         .window = 1u << dict_log, .max_dist = (1u << dict_log) - 1,
         .min_match = 3, .max_match = LZMA_MAX_MATCH,
@@ -213,15 +169,21 @@ void lzma_encoder_free(lzma_encoder *e)
 {
     lzma_model_free(&e->m);
     lz_matcher_free(&e->finder);
+    lzma_opt_free(e);
 }
 
 uint32_t lzma_encoder_dict_size(const lzma_encoder *e) { return e->params.window; }
 
-static lz_match find(lzma_encoder *e, size_t pos)
+void lzma_encoder_reset_state(lzma_encoder *e)
 {
-    if (e->cached_pos == pos)
-        return e->cached;
-    return lz_matcher_find(&e->finder, pos);
+    lzma_model_reset(&e->m);
+    e->plan_len = e->plan_pos = 0;
+}
+
+void lzma_encoder_index_upto(lzma_encoder *e, size_t end)
+{
+    for (; e->indexed < end; e->indexed++)
+        lz_matcher_insert(&e->finder, e->indexed);
 }
 
 /* Big distances cost more bits, so a slightly shorter repeat (whose
@@ -234,12 +196,13 @@ static int rep_beats_match(uint32_t rep_len, lz_match main)
                             (rep_len + 3 >= main.len && main.dist >= (1u << 15)));
 }
 
-uint32_t lzma_encode_step(lzma_encoder *e, rc_encoder *rc)
+static lzma_op fast_next(lzma_encoder *e)
 {
     size_t pos = e->pos, avail = e->n - pos;
     uint32_t max = avail < LZMA_MAX_MATCH ? (uint32_t)avail : LZMA_MAX_MATCH;
-    lz_match main = find(e, pos);
-    lz_matcher_insert(&e->finder, pos);
+    lzma_encoder_index_upto(e, pos);
+    lz_match main = e->cached_pos == pos ? e->cached : lz_matcher_find(&e->finder, pos);
+    lzma_encoder_index_upto(e, pos + 1);
 
     unsigned rep_idx = 0;
     uint32_t rep_len = 0;
@@ -255,49 +218,42 @@ uint32_t lzma_encode_step(lzma_encoder *e, rc_encoder *rc)
             rep_len = len, rep_idx = r;
     }
 
-    uint32_t len = 1;
-    enum { LIT, MATCH, REP } op = LIT;
-    if (rep_len >= e->nice_len || (rep_len >= 2 && rep_beats_match(rep_len, main))) {
-        op = REP, len = rep_len;
-    } else if (main.len >= LZMA_MIN_MATCH) {
-        op = MATCH, len = main.len;
+    if (rep_len >= e->nice_len || (rep_len >= 2 && rep_beats_match(rep_len, main)))
+        return (lzma_op){LZMA_OP_REP, (uint8_t)rep_idx, rep_len, 0};
+    if (main.len >= LZMA_MIN_MATCH) {
         /* Lazy step: if the next position matches longer, emit a literal
          * now and take that match next time. */
         if (main.len < e->nice_len && pos + 1 < e->n) {
             e->cached = lz_matcher_find(&e->finder, pos + 1);
             e->cached_pos = pos + 1;
-            if (e->cached.len > main.len)
-                op = LIT, len = 1;
+        }
+        if (e->cached_pos != pos + 1 || e->cached.len <= main.len) {
+            uint32_t dist = main.dist - 1;
+            for (unsigned r = 0; r < LZMA_NUM_REPS; r++)
+                if (e->m.rep[r] == dist)  /* same distance as a recent one */
+                    return (lzma_op){LZMA_OP_REP, (uint8_t)r, main.len, 0};
+            return (lzma_op){LZMA_OP_MATCH, 0, main.len, dist};
         }
     }
+    const lzma_model *m = &e->m;
+    unsigned ps = pos & ((1u << m->pb) - 1);
+    if (pos > m->rep[0] && e->in[pos] == e->in[pos - m->rep[0] - 1] &&
+        lzma_price_shortrep(m, m->state, ps) < lzma_price_literal(m, e->in, pos, m->state, m->rep[0]))
+        return (lzma_op){LZMA_OP_SHORTREP, 0, 1, 0};
+    return (lzma_op){LZMA_OP_LIT, 0, 1, 0};
+}
 
-    switch (op) {
-    case REP:
-        encode_rep(e, rc, rep_idx, len);
-        break;
-    case MATCH: {
-        uint32_t dist = main.dist - 1;
-        unsigned r = 0;
-        while (r < LZMA_NUM_REPS && e->m.rep[r] != dist)
-            r++;
-        if (r < LZMA_NUM_REPS)
-            encode_rep(e, rc, r, len);  /* same distance as a recent one */
-        else
-            encode_match(e, rc, dist, len);
-        break;
+uint32_t lzma_encode_step(lzma_encoder *e, rc_encoder *rc)
+{
+    lzma_op op = e->optimal ? lzma_opt_next(e) : fast_next(e);
+    switch (op.kind) {
+    case LZMA_OP_LIT: encode_literal(e, rc); break;
+    case LZMA_OP_SHORTREP: encode_shortrep(e, rc); break;
+    case LZMA_OP_REP: encode_rep(e, rc, op.rep, op.len); break;
+    default: encode_match(e, rc, op.dist, op.len); break;
     }
-    case LIT:
-        if (pos > e->m.rep[0] && e->in[pos] == e->in[pos - e->m.rep[0] - 1] &&
-            shortrep_price(e) < literal_price(e))
-            encode_shortrep(e, rc);
-        else
-            encode_literal(e, rc);
-        break;
-    }
-    for (size_t i = pos + 1; i < pos + len; i++)
-        lz_matcher_insert(&e->finder, i);
-    e->pos += len;
-    return len;
+    e->pos += op.len;
+    return op.len;
 }
 
 void lzma_encode_end_marker(lzma_encoder *e, rc_encoder *rc)

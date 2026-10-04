@@ -136,6 +136,8 @@ static const struct {
     {"compress", "-b16", {"compress", "-c"}, {"compress", "-dc"}},
 };
 
+static totals tool_tot[16];
+
 static void bench_tools(const char *path, double n, const char *tmp)
 {
     char zpath[512], dpath[512];
@@ -151,6 +153,10 @@ static void bench_tools(const char *path, double n, const char *tmp)
         char who[64];
         snprintf(who, sizeof who, "[system] %s", tools[i].name);
         row(who, tools[i].level, n, out, ct, dt);
+        tool_tot[i].in += n;
+        tool_tot[i].out += out;
+        tool_tot[i].ctime += ct;
+        tool_tot[i].dtime += dt;
     }
 }
 
@@ -250,6 +256,13 @@ int bench_main(int argc, char **argv)
                 snprintf(level, sizeof level, lv[k] ? "%d" : "def", lv[k]);
                 row(sq_codecs[i].name, level, t->in, t->out, t->ctime, t->dtime);
             }
+        }
+        for (size_t i = 0; i < sizeof tools / sizeof tools[0]; i++) {
+            const totals *t = &tool_tot[i];
+            char who[64];
+            snprintf(who, sizeof who, "[system] %s", tools[i].name);
+            if (t->in > 0)
+                row(who, tools[i].level, t->in, t->out, t->ctime, t->dtime);
         }
     }
     char z[600];

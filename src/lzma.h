@@ -81,7 +81,32 @@ static inline rc_prob *lzma_literal_probs(const lzma_model *m, size_t pos, uint8
 int lzma_decode(lzma_model *m, rc_decoder *rc, sq_buf *out, size_t dict_start, size_t target,
                 int allow_end, int *ended);
 
-/* ---- encoder (lzma_enc.c) ---- */
+/* ---- prices (lzma_price.c) ---- */
+
+/* Estimated cost, in 1/16 bit, of coding a decision with the model as it
+ * stands. Encoders use them to compare alternatives. `len0` is a match
+ * length minus LZMA_MIN_MATCH and `dist0` a distance minus one, as coded. */
+unsigned lzma_dist_slot(uint32_t dist0);
+uint32_t lzma_price_literal(const lzma_model *m, const uint8_t *in, size_t pos, unsigned state,
+                            uint32_t rep0);
+uint32_t lzma_price_shortrep(const lzma_model *m, unsigned state, unsigned pos_state);
+uint32_t lzma_price_rep(const lzma_model *m, unsigned idx, unsigned state, unsigned pos_state);
+uint32_t lzma_price_match(const lzma_model *m, unsigned state, unsigned pos_state);
+uint32_t lzma_price_len(const lzma_len_model *l, uint32_t len0, unsigned pos_state);
+uint32_t lzma_price_dist(const lzma_model *m, uint32_t dist0, uint32_t len0);
+
+/* ---- encoder (lzma_enc.c, lzma_opt.c) ---- */
+
+enum { LZMA_OP_LIT, LZMA_OP_SHORTREP, LZMA_OP_REP, LZMA_OP_MATCH };
+
+/* One coding decision: a literal, a one-byte repeat of rep0, a repeat of
+ * recent distance `rep`, or a match at distance `dist` + 1. */
+typedef struct {
+    uint8_t kind, rep;
+    uint32_t len, dist;
+} lzma_op;
+
+typedef struct lzma_opt lzma_opt;  /* the optimal parser's working state */
 
 typedef struct {
     lzma_model m;
@@ -89,9 +114,13 @@ typedef struct {
     lz_matcher finder;
     const uint8_t *in;
     size_t n, pos;       /* next byte to encode */
+    size_t indexed;      /* positions below this are in the match finder */
     uint32_t nice_len;
-    size_t cached_pos;   /* the lazy look-ahead's match, reused next step */
+    size_t cached_pos;   /* the fast parser's look-ahead match, reused */
     lz_match cached;
+    int optimal;         /* levels 7-9: price whole paths (lzma_opt.c) */
+    lzma_opt *opt;
+    size_t plan_len, plan_pos;  /* planned decisions; reset with the model */
 } lzma_encoder;
 
 /* Dictionary size and search effort for levels 1-9 (0 = default 6),
@@ -99,11 +128,20 @@ typedef struct {
 int lzma_encoder_init(lzma_encoder *e, const uint8_t *in, size_t n, int level);
 void lzma_encoder_free(lzma_encoder *e);
 uint32_t lzma_encoder_dict_size(const lzma_encoder *e);
-/* Codes the next operation (literal, match or repeat) at e->pos and
- * advances. Returns the number of input bytes it covered. */
+/* Codes the next decision at e->pos and advances past it. Returns the
+ * number of input bytes it covered (at most LZMA_MAX_MATCH). */
 uint32_t lzma_encode_step(lzma_encoder *e, rc_encoder *rc);
 /* The end-of-stream marker (a match with distance 2^32). */
 void lzma_encode_end_marker(lzma_encoder *e, rc_encoder *rc);
+/* Resets the model (LZMA2 state reset) and drops any planned decisions,
+ * which were priced against the old model. */
+void lzma_encoder_reset_state(lzma_encoder *e);
+/* Indexes every position below `end` not yet in the match finder. */
+void lzma_encoder_index_upto(lzma_encoder *e, size_t end);
+
+/* The optimal parser's next decision, and its cleanup (lzma_opt.c). */
+lzma_op lzma_opt_next(lzma_encoder *e);
+void lzma_opt_free(lzma_encoder *e);
 
 /* ---- LZMA2 (lzma2.c) ---- */
 

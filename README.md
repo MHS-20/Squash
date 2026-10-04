@@ -3,6 +3,26 @@
 A compression library (`libsquash`) and command-line tool (`squash`) in C11,
 written from scratch from the format specifications.
 
+## Formats
+
+| Format | `-f` | Levels | Encoder | Decoder also handles |
+|---|---|---|---|---|
+| gzip (RFC 1952) | `gzip` | 1-9 (6) | LZ77 hash chains, greedy 1-3 / lazy 4-9; stored, fixed or dynamic Huffman per block | all header flags, multiple members |
+| zlib (RFC 1950) | `zlib` | 1-9 (6) | as gzip | preset dictionary reported as unsupported |
+| raw DEFLATE (RFC 1951) | `deflate` | 1-9 (6) | as gzip | |
+| Unix compress (.Z) | `lzw` | 9-16 bits (16) | LZW with compress's ratio-based reset | non-block-mode streams |
+| LZ4 frame | `lz4` | 1-9 (1) | hash chains, 4 MB independent blocks, content checksum | linked blocks, block checksums, skippable and legacy frames |
+| Snappy framing | `snappy` | 1 | 64 KB chunks, masked CRC-32C | padding and skippable chunks |
+| Snappy raw | `snappy-raw` | 1 | | |
+| bzip2 | `bzip2` | 1-9 (9) | RLE1, BWT via SA-IS, MTF, RLE2, 2-6 Huffman tables | randomised blocks, multiple streams |
+| xz | `xz` | 1-9 (6) | LZMA2; fast parser 1-6, optimal parser 7-9; CRC64 | multiple blocks and streams, CRC32/CRC64/SHA-256/no check |
+| .lzma | `lzma` | 1-9 (6) | as xz | unknown size with end marker |
+| zstd (RFC 8878) | `zstd` | 1-19 (3) | hash chains with repeat offsets; Huffman literals; predefined/RLE/FSE tables | dictionaries (`-D`), skippable frames, all block and table modes |
+
+The library also contains teaching codecs that are not file formats:
+static and adaptive arithmetic coding (`arith.c`), rANS and interleaved
+rANS (`rans.c`), and an order-0 FSE codec (`fse.c`).
+
 ## Build and test
 
 ```
@@ -116,6 +136,8 @@ tar c dir | squash -f gzip > dir.tar.gz
 | `src/zstd_tables.c` | code baselines, default distributions, repeat-offset rules |
 | `src/zstd_dec.c` | zstd decoder (frames, blocks, literals, sequences, dictionaries) |
 | `src/zstd_enc.c` | zstd encoder |
+| `src/lzma_price.c` | LZMA decision prices from the current model |
+| `src/lzma_opt.c` | LZMA optimal parser (levels 7-9) |
 | `tests/test.h` | tiny test harness |
 | `tests/test_*.c` | one unit test per module |
 | `tests/corpus.h` | generated inputs: empty, 1 byte, zeros, random, text, binary, boundary sizes, >1 block |

@@ -212,15 +212,14 @@
 - The output buffer is the dictionary: back-references are checked against
   the bytes produced since the last dictionary reset, and positions for
   `pb`/`lp` contexts count from that reset, as in the SDK.
-- Encoder: the LZMA SDK's fast mode, re-derived. At each position try the
-  four repeat distances and the hash-chain match; prefer a repeat that is
-  nearly as long (the SDK's thresholds), take one step of lazy evaluation,
-  and choose between a literal and a "short rep" by bit price. Distances
-  that equal a recent one are coded as repeats. The SDK's optimal parser
-  (pricing paths of up to 4096 decisions) is not implemented; that is
-  where most of the gap to `xz -6` (about 15% on source code) comes from.
-- Levels 1-9 set dictionary size (1-16 MiB, shrunk to the input), chain
-  length and nice length. lc=3, lp=0, pb=2.
+- Encoder, levels 1-6: the LZMA SDK's fast mode, re-derived. At each
+  position try the four repeat distances and the hash-chain match; prefer a
+  repeat that is nearly as long (the SDK's thresholds), take one step of
+  lazy evaluation, and choose between a literal and a "short rep" by bit
+  price. Distances that equal a recent one are coded as repeats. Levels 7-9
+  use the optimal parser described below.
+- Levels set dictionary size (1-16 MiB, shrunk to the input), chain length
+  and nice length. lc=3, lp=0, pb=2.
 - LZMA2 chunks hold at most 2 MiB in and 64 KiB out; the encoder stops a
   chunk when another operation might not fit, and stores a chunk that did
   not shrink. After a stored chunk the next LZMA chunk resets the state
@@ -297,6 +296,65 @@
   comes out about 3% smaller than `zstd -3` (which is tuned for speed) but
   much slower; level 19 is about 12% larger than `zstd -19`.
 
+## LZMA optimal parsing (levels 7-9)
+
+- A separate module, `lzma_opt.c`, so the fast parser stays the simple
+  path. It plans a stretch of up to 4096 bytes at a time as a shortest-path
+  problem: node i means "i bytes coded", edges are every literal, short
+  rep, repeat (each of four distances, every length) and match (every
+  length of every improving match from `lz_matcher_find_all`), weighted by
+  their price under the current model (`lzma_price.c`). Each node carries
+  the LZMA state and repeat distances its best path leaves behind, since
+  later prices depend on them.
+- A match of at least `nice_len` ends the stretch immediately (taken
+  without weighing alternatives), which bounds the work on repetitive
+  data. Length prices are tabulated and refreshed every 1 KiB of input;
+  distance prices are computed per match.
+- The LZMA SDK's `GetOptimum` additionally tries "match + literal + rep0"
+  combinations, keeps price tables per position state, and uses a binary
+  tree match finder that finds better candidates than hash chains. On 3 MB
+  of `dickens`, level 9 is 5% larger than `xz -9`; the default level 6
+  (fast parser) is 20% larger.
+- LZMA2 state resets after stored chunks also drop the planned decisions,
+  which were priced against the old model.
+
+## Benchmark
+
+`squash bench` times each codec in memory (best of repeated runs of at
+least 0.2 s) and the system tools as processes on files, so the tools'
+figures include process start-up and I/O. Our timings are single-threaded
+and unoptimised C at `-O2`; the point is the ratio and the order of
+magnitude, not a speed contest.
+
+Silesia corpus (211,938,580 bytes, all 12 files), default levels, one run
+on an 8-core x86-64 Linux machine; MB/s are input megabytes per second:
+
+| Codec | Level | Ratio | Compress MB/s | Decompress MB/s |
+|---|---|---|---|---|
+| gzip (ours) | 6 | 3.114 | 11.6 | 81.6 |
+| gzip (system) | -6 | 3.107 | 15.8 | 145.9 |
+| gzip (system) | -9 | 3.134 | 6.7 | 148.3 |
+| bzip2 (ours) | 9 | 3.882 | 4.5 | 17.9 |
+| bzip2 (system) | -9 | 3.888 | 7.4 | 19.7 |
+| lz4 (ours) | 1 | 2.183 | 74.5 | 261.6 |
+| lz4 (system) | -1 | 2.100 | 516.9 | 548.2 |
+| lz4 (system) | -9 | 2.717 | 53.7 | 601.2 |
+| xz (ours, fast parser) | 6 | 3.623 | 2.9 | 24.7 |
+| xz (system) | -6 | 4.305 | 1.3 | 62.7 |
+| zstd (ours) | 3 | 3.207 | 19.5 | 118.4 |
+| zstd (system) | -3 | 3.201 | 168.5 | 402.5 |
+| zstd (system) | -19 | 4.007 | 1.5 | 321.0 |
+| lzw (ours) | 16 | 2.248 | 47.9 | 109.5 |
+| snappy framing (ours) | - | 2.288 | 43.7 | 124.0 |
+
+What the numbers say: the formats with a fixed encoder recipe (gzip,
+bzip2) land within 1% of the reference ratio; the LZ4/zstd encoders here
+spend more search effort per byte than the references' fast levels, so
+they match or beat them on ratio while being far slower; LZMA's gap is the
+parser (see the optimal parser section) and the hash-chain match finder.
+Decoders are 1.5-4x slower than the references, which use wide copies,
+branchless bit readers and multi-symbol Huffman tables.
+
 ## Upstream references (opened and verified)
 
 Pinned commits:
@@ -321,7 +379,7 @@ Pinned commits:
 |---|---|---|
 | CRC-32 | zlib `crc32.c:157`, `crc32.c:175` | reflected polynomial and the byte-table recurrence |
 | Adler-32 | zlib `adler32.c:10-12` | modulus and NMAX bound |
-| xxHash32 | xxHash `xxhash.h:2922-2926`, `2947-2951`, `3004-3010`, `3187-3203` | primes, lane round, avalanche, short-input path |
+| xxHash32 | xxHash `xxhash.h:2922-2926`, `2947-2951`, `3004-3010`, `3180-3201` | primes, lane round, avalanche, short-input path |
 | xxHash64 | xxHash `xxhash.h:3481-3485`, `3496`, `3521-3525` | primes, round and merge round |
 | Huffman | zlib `trees.c:540-593` (`gen_bitlen` overflow fix), `trees.c:203-227` (`gen_codes`) | canonical code assignment; zlib's alternative to flattening |
 | Huffman | zlib `inftrees.c:139-147` | over-subscribed / incomplete checks |
@@ -365,14 +423,14 @@ Pinned commits:
 | LZMA decode | 7-Zip `C/LzmaDec.c:91-118` | model constants (length coder, slots, align bits, min match) |
 | LZMA decode | 7-Zip `C/LzmaDec.c:234-613` (`LZMA_DECODE_REAL`) | decode loop, matched literals (`291`), end marker (`525`) |
 | LZMA2 decode | 7-Zip `C/LzmaDec.c:911-922`, `C/Lzma2Dec.c:238-262` | what dictionary / state resets reset (position counter) |
-| LZMA encode | 7-Zip `C/LzmaEnc.c:1977-2100` (`GetOptimumFast`) | rep-vs-match thresholds, lazy step |
-| LZMA2 decode | xz `src/liblzma/lzma/lzma2_decoder.c:56-200` | control byte semantics, property and dictionary reset rules |
+| LZMA encode | 7-Zip `C/LzmaEnc.c:1977-2106` (`GetOptimumFast`) | rep-vs-match thresholds, lazy step |
+| LZMA2 decode | xz `src/liblzma/lzma/lzma2_decoder.c:56-230` | control byte semantics, property and dictionary reset rules |
 | LZMA2 encode | xz `src/liblzma/lzma/lzma2_encoder.c:200-212` | storing chunks that did not compress, then a state reset |
 | LZMA props | xz `src/liblzma/lzma/lzma_decoder.c:1199` | lc/lp/pb byte |
-| xz | xz `doc/xz-file-format.txt:184-250`, `336-470`, `498-660`, `647-800`, `845-900` | varints, stream header/footer, block header, index, LZMA2 dictionary byte |
+| xz | xz `doc/xz-file-format.txt:184-250`, `306-470`, `476-646`, `647-756`, `845-910` | varints, stream header/footer, block header/padding/check, index, LZMA2 dictionary byte |
 | rANS | ryg_rans `rans_byte.h:50-140` | byte-wise rANS: L, x_max renormalisation, put/flush/init/advance |
 | rANS | ryg_rans `main.cpp:216-252` | two-way interleaving and flush order |
-| FSE | zstd `lib/common/entropy_common.c:43-190` (`FSE_readNCount_body`) | table description decoding, zero-run flags |
+| FSE | zstd `lib/common/entropy_common.c:43-188` (`FSE_readNCount_body`) | table description decoding, zero-run flags |
 | FSE | zstd `lib/compress/fse_compress.c` (`FSE_buildCTable_wksp`, `FSE_writeNCount`, `FSE_normalizeCount:465`) | encoding table, `deltaNbBits`, description writer, zstd's normaliser |
 | FSE | zstd `lib/common/fse_decompress.c:59` (`FSE_buildDTable_internal`) | decoding table construction |
 | FSE | zstd `lib/common/fse.h:443-466`, `623` | encoder state init/encode/flush, `FSE_TABLESTEP` |
@@ -382,5 +440,7 @@ Pinned commits:
 | zstd | zstd `doc/zstd_compression_format.md:1257-1552`, dictionary format section | Huffman weights, FSE-coded weights, code assignment, dictionaries |
 | zstd decode | zstd `doc/educational_decoder/zstd_decompress.c:868-990`, `1005`, `1234`, `2048` | Huffman table reading, sequence decoding/execution, two-state weight decoding |
 | zstd decode | zstd `lib/decompress/zstd_decompress_block.c:647`, `695`, `1237` | sequence tables, sequence header, `ZSTD_decodeSequence` |
-| zstd encode | zstd `lib/compress/zstd_compress_sequences.c:292-390` (`ZSTD_encodeSequences_body`) | backward sequence encoding order: init, extra bits, state order, flush |
+| zstd encode | zstd `lib/compress/zstd_compress_sequences.c:292-384` (`ZSTD_encodeSequences_body`) | backward sequence encoding order: init, extra bits, state order, flush |
 | zstd encode | zstd `lib/compress/zstd_compress_literals.c:129` | literal block choices |
+| LZMA optimal | 7-Zip `C/LzmaEnc.c:1178` (`Backward`), `1230-1973` (`GetOptimum`) | path tracing, per-node state and reps, `kNumOpts` horizon, `numFastBytes` cut-off |
+| LZMA prices | 7-Zip `C/LzmaEnc.c:2213`, `2237` (`FillAlignPrices`, `FillDistancesPrices`) | which prices are tabulated and refreshed |

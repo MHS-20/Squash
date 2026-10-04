@@ -84,9 +84,14 @@ int main(void)
     sq_buf z, d;
     sq_buf_init(&z);
     sq_buf_init(&d);
-    CHECK(sq_xz_compress(data, sizeof data, 1, &z) == 0);
-    CHECK(sq_xz_decompress(z.data, z.len, &d) == 0 && same_bytes(d.data, d.len, data, sizeof data));
-    official("xz", &z, data, sizeof data, "xz -dc");
+    /* Level 1 uses the fast parser, 9 the optimal one. */
+    for (int level = 1; level <= 9; level += 8) {
+        z.len = d.len = 0;
+        CHECK(sq_xz_compress(data, sizeof data, level, &z) == 0);
+        CHECK(sq_xz_decompress(z.data, z.len, &d) == 0 &&
+              same_bytes(d.data, d.len, data, sizeof data));
+        official("xz", &z, data, sizeof data, "xz -dc");
+    }
     z.len = d.len = 0;
     CHECK(sq_lzma_compress(data, sizeof data, 6, &z) == 0);
     CHECK(sq_lzma_decompress(z.data, z.len, &d) == 0 && same_bytes(d.data, d.len, data, sizeof data));
