@@ -293,8 +293,9 @@
   decoder only updates them on compressed blocks).
 - Levels 1-19 vary window (512 KiB-8 MiB), chain length and lazy
   threshold. zstd's real strategies (double-fast, lazy2, btopt, btultra
-  with optimal parsing) are not implemented; at level 3 the output is
-  within 0.2% of `zstd -3` on source code, at 19 about 12% larger.
+  with optimal parsing) are not implemented. On 6 MB of C headers, level 3
+  comes out about 3% smaller than `zstd -3` (which is tuned for speed) but
+  much slower; level 19 is about 12% larger than `zstd -19`.
 
 ## Upstream references (opened and verified)
 
